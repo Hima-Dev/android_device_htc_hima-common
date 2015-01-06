@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -26,13 +27,14 @@
 
 #include "tfa9887.h"
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #define LOG_TAG "tfa9887"
 
 /* Module variables */
 
 static bool tfa9887_initialized = false;
 static bool tfa9887l_initialized = false;
+static bool dsp_enabled = false;
 static Tfa9887_Mode_t tfa9887_mode = Tfa9887_Num_Modes;
 
 /* Helper functions */
@@ -227,24 +229,13 @@ read_mem_err:
     return error;
 }
 
-static int load_binary_data(int fd, const uint8_t *bytes, int length) {
+static int processData(int fd, const uint8_t *bytes, int length) {
     int error;
     int size;
     int index = 0;
+    int offset;
     uint8_t buffer[MAX_I2C_LENGTH];
-    uint32_t value = 0;
-    uint16_t status;
 
-    error = tfa9887_read_reg(fd, TFA9887_STATUS, &status);
-    if (error != 0) {
-        if ((status & 0x0043) != 0x0043) {
-            /* one of Vddd, PLL and clocks not ok */
-            error = -1;
-        }
-    }
-    ALOGI("tfa9887 status %u", status);
-    error = dsp_read_mem(fd, 0x2210, 1, &value);
-    ALOGI("tfa9887 version %x", value);
     while (index < length) {
         /* extract little endian length */
         size = bytes[index] + bytes[index+1] * 256;
@@ -266,6 +257,50 @@ static int load_binary_data(int fd, const uint8_t *bytes, int length) {
     return error;
 }
 
+#define PATCH_HEADER_LENGTH 6
+static int load_binary_data(int fd, const uint8_t *bytes, int length) {
+    int error;
+    uint32_t value = 0;
+    uint16_t status;
+    unsigned short checkrev;
+    uint16_t checkaddress;
+    uint32_t checkvalue;
+
+    error = tfa9887_read_reg(fd, TFA9887_STATUS, &status);
+    if (error != 0) {
+        if ((status & 0x0043) != 0x0043) {
+            /* one of Vddd, PLL and clocks not ok */
+            ALOGE("DSP NOT RUNNING");
+            error = -1;
+        }
+    }
+
+    // check the data lines up
+    checkrev = bytes[0];
+    checkaddress = (bytes[1] << 8) + bytes[2];
+    checkvalue = bytes[5] + (bytes[4] << 8) + (bytes[3] << 16);
+    ALOGI("tfa9887 checkrev 0x%x", checkrev); // 0x12
+    ALOGI("tfa9887 checkaddress 0x%x", checkaddress); // 0x21b4
+    ALOGI("tfa9887 checkvalue 0x%x", checkvalue); // 0x779a
+
+    if (checkaddress != 0xFFFF) {
+        error = dsp_read_mem(fd, checkaddress, 1, &value);
+        if (error ==  0) {
+            if (value != checkvalue) {
+                /* DSP subsys not running */
+                ALOGE("ERROR: NOT SUPPORTED? checkvalue 0x%x value 0x%x", checkvalue, value);
+                //return -1;
+            }
+        }
+    }
+
+    // process buffer
+    ALOGI("tfa9887 value %x", value);
+    error = processData(fd, bytes + PATCH_HEADER_LENGTH,
+                     length - PATCH_HEADER_LENGTH);
+    return error;
+}
+
 static int dsp_set_param(int fd, uint8_t module_id,
         uint8_t param_id, const uint8_t *data, int num_bytes) {
     int error;
@@ -277,36 +312,65 @@ static int dsp_set_param(int fd, uint8_t module_id,
     uint32_t rpc_status = 0;
     int tries = 0;
 
-    error = tfa9887_write_reg(fd, TFA9887_CF_CONTROLS, cf_ctrl);
+    uint8_t buffer[7];
+    /* first the data for CF_CONTROLS */
+    buffer[0] = ((cf_ctrl >> 8) & 0xFF);
+    buffer[1] = (cf_ctrl & 0xFF);
+    /* write the contents of CF_MAD which is the subaddress
+     * following CF_CONTROLS */
+    buffer[2] = ((cf_mad >> 8) & 0xFF);
+    buffer[3] = (cf_mad & 0xFF);
+    /* write the module and RPC id into CF_MEM, which
+     * follows CF_MAD */
+    buffer[4] = 0;
+    buffer[5] = module_id + 128;
+    buffer[6] = param_id;
+    error = tfa9887_write(fd, TFA9887_CF_CONTROLS,
+                    buffer, sizeof(buffer));
+
     if (error == 0) {
-        error = tfa9887_write_reg(fd, TFA9887_CF_MAD, cf_mad);
-    }
-    if (error == 0) {
-        id[0] = 0;
-        id[1] = module_id + 128;
-        id[2] = param_id;
-        error = tfa9887_write(fd, TFA9887_CF_MEM, id, 3);
+        int offset = 0;
+        int chunk_size = 252;
+            /* XMEM word size */
+        int remaining_bytes = num_bytes;
+        /* due to autoincrement in cf_ctrl, next write will happen at
+         * the next address */
+        while ((error == 0) && (remaining_bytes > 0)) {
+            if (remaining_bytes < chunk_size)
+                chunk_size = remaining_bytes;
+            /* else chunk_size remains at initialize value above */
+            error = tfa9887_write(fd, TFA9887_CF_MEM,
+                           data + offset, chunk_size);
+            remaining_bytes -= chunk_size;
+            offset += chunk_size;
+            if (error)
+                return -1;
+        }
     }
 
-    error = tfa9887_write(fd, TFA9887_CF_MEM, data, num_bytes);
+    //error = tfa9887_write_reg(fd, TFA9887_CF_CONTROLS,  0x112);
+    //error = tfa9887_write(fd, TFA9887_CF_MEM, data, num_bytes);
+    //cf_ctrl = 0x0002;
+    error = tfa9887_write_reg(fd, TFA9887_CF_CONTROLS, 0x112);
     if (error == 0) {
-        cf_ctrl |= (1 << 8) | (1 << 4); /* set the cf_req1 and cf_int bit */
-        error = tfa9887_write_reg(fd, TFA9887_CF_CONTROLS, cf_ctrl);
+        //cf_ctrl |= (1 << 8) | (1 << 4); /* set the cf_req1 and cf_int bit */
         do {
             error = tfa9887_read_reg(fd, TFA9887_CF_STATUS, &cf_status);
             tries++;
             usleep(1000);
             /* don't wait forever, DSP is pretty quick to respond (< 1ms) */
         } while ((error == 0) &&
-                ((cf_status & 0x0100) == 0) &&
-                (tries < 100));
+                ((cf_status & 0x100) == 0) &&
+                (tries < 10));
 
-        if (tries >= 100) {
+        if (tries >= 10) {
             /* something wrong with communication with DSP */
-            ALOGE("%s: Timed out waiting for status", __func__);
-            error = -1;
+            ALOGE("%s: Timed out waiting for status  cf_status=0x%04x", __func__, (cf_status & 0x100));
+            //error = -1;
         }
     }
+
+    // next
     cf_ctrl = 0x0002;
     cf_mad = 0x0000;
     if (error == 0) {
@@ -339,9 +403,8 @@ static int dsp_set_param(int fd, uint8_t module_id,
 static int tfa9887_load_dsp(int fd, const char *param_file) {
     int error;
     char *suffix;
-    uint8_t buf[MAX_PARAM_SIZE];
     int param_sz;
-    int type, module;
+    int type, module, max_size;
 
     suffix = strrchr(param_file, '.');
     if (suffix == NULL) {
@@ -351,22 +414,31 @@ static int tfa9887_load_dsp(int fd, const char *param_file) {
     } else if (strcmp(suffix, ".speaker") == 0) {
         type = PARAM_SET_LSMODEL;
         module = MODULE_SPEAKERBOOST;
+        max_size = 423;
     } else if (strcmp(suffix, ".config") == 0) {
         type = PARAM_SET_CONFIG;
         module = MODULE_SPEAKERBOOST;
+        max_size = 201;
     } else if (strcmp(suffix, ".preset") == 0) {
         type = PARAM_SET_PRESET;
         module = MODULE_SPEAKERBOOST;
+        max_size = 87;
     } else if (strcmp(suffix, ".eq") == 0) {
         type = PARAM_SET_EQ;
         module = MODULE_BIQUADFILTERBANK;
+        max_size = 1024;
+    } else if (strcmp(suffix, ".drc") == 0) {
+        type = PARAM_SET_DRC;
+        module = MODULE_SPEAKERBOOST;
+        max_size = 381;
     } else {
         ALOGE("%s: Invalid DSP param file %s", __func__, param_file);
         error = -EINVAL;
         goto load_dsp_err;
     }
 
-    param_sz = read_file(param_file, buf, MAX_PARAM_SIZE);
+    uint8_t buf[max_size];
+    param_sz = read_file(param_file, buf, max_size);
     if (param_sz < 0) {
         error = param_sz;
         ALOGE("%s: Failed to load file %s: %d", __func__, param_file, error);
@@ -375,8 +447,16 @@ static int tfa9887_load_dsp(int fd, const char *param_file) {
 
     error = dsp_set_param(fd, module, type, buf, param_sz);
     if (error != 0) {
-        ALOGE("%s: Failed to set DSP params, error: %d", __func__, error);
+        ALOGE("%s: Failed to set DSP params, error: %d type: %d buf: %d param_sz: %d", __func__, error, type, sizeof(buf), param_sz);
     }
+
+    // set AGC gain insert after speaker write
+    //if (strcmp(suffix, ".speaker") == 0) {
+    //    uint32_t *data[3];
+    //    uint8_t bytes[3];
+    //    bytes2data(bytes, 1, data);
+    //    dsp_set_param(fd, MODULE_SPEAKERBOOST, SB_PARAM_SET_AGCINS, (uint8_t *)data, 3);
+    //}
 
 load_dsp_err:
     return error;
@@ -616,13 +696,14 @@ static int tfa9887_wait_ready(int fd, unsigned int ready_bits,
     int tries;
     bool ready;
 
+    tfa9887_read_reg(fd, TFA9887_STATUS, &value);
     tries = 0;
     do {
         error = tfa9887_read_reg(fd, TFA9887_STATUS, &value);
         ready = (error == 0 &&
                 (value & ready_bits) == ready_state);
-        ALOGV("Waiting for 0x%04x, current state: 0x%04x",
-                ready_state, value);
+        ALOGD("Waiting for 0x%04x, current state: 0x%04x",
+                ready_state, value & ready_bits);
         tries++;
         usleep(1000);
     } while (!ready && tries < 10);
@@ -656,56 +737,63 @@ set_conf_err:
 
 static int tfa9887_startup(int fd) {
     int error;
-    uint16_t value;
+    uint16_t value = 0;
+    uint16_t value2 = 0x12;
 
-    error = tfa9887_write_reg(fd, 0x09, 0x0002);
+    tfa9887_write_reg(fd, TFA9887_SYSTEM_CONTROL, 0x2);
+
+    tfa9887_read_reg(fd, 0x8, &value2);
+    if ( value2 & 0x400 ) {
+        tfa9887_write_reg(fd, 0x8, value2 & 0xFBFF);
+        tfa9887_read_reg(fd, 0x8, &value2);
+        tfa9887_write_reg(fd, 0x8, value2);
+    }
+
+    error = tfa9887_write_reg(fd, TFA9887_SYSTEM_CONTROL, 0x2);
     if (0 == error) {
-        error = tfa9887_read_reg(fd, 0x09, &value);
+        error = tfa9887_read_reg(fd, TFA9887_SYSTEM_CONTROL, &value);
     }
     if (0 == error) {
         /* DSP must be in control of the amplifier to avoid plops */
         value |= TFA9887_SYSCTRL_SEL_ENBL_AMP;
-        error = tfa9887_write_reg(fd, 0x09, value);
+        error = tfa9887_write_reg(fd, TFA9887_SYSTEM_CONTROL, value);
     }
 
     /* some other registers must be set for optimal amplifier behaviour */
     if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x40, 0x5A6B);
+        error = tfa9887_write_reg(fd, TFA9887_BAT_PROT, 0x13AB);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x05, 0x13AB);
+        error = tfa9887_write_reg(fd, TFA9887_AUDIO_CONTROL, 0x1F);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x06, 0x001F);
+        error = tfa9887_write_reg(fd, TFA9887_SPKR_CALIBRATION, 0x3C4E);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(fd, TFA9887_SPKR_CALIBRATION, 0x0C4E);
+        error = tfa9887_write_reg(fd, TFA9887_SYSTEM_CONTROL, 0x24D);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x09, 0x025D);
+        error = tfa9887_write_reg(fd, TFA9887_PWM_CONTROL, 0x308);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x0A, 0x3EC3);
-    }
-    if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x41, 0x0308);
-    }
-    if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x48, 0x0180);
-    }
-    if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x49, 0x0E82);
-    }
-    if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x52, 0x0000);
-    }
-    if (0 == error) {
-        error = tfa9887_write_reg(fd, 0x40, 0x0000);
+        error = tfa9887_write_reg(fd, TFA9887_CURRENTSENSE4, 0xE82);
     }
 
     return error;
 }
 
+static int is_Dsp_Calibrated(int fd) {
+  uint16_t value;
+
+  tfa9887_read_reg(fd, TFA9887_MTP, &value);
+  return (value >> 1) & 1;
+}
+
+//static void getStatus() {
+//    uint8_t dummy_data[16];
+//    dummy_data = 0xFFFFFF;
+//    load_binary_data(fd, dummy_data, 0x10);
+//}
 static int tfa9887_init(int fd, int sample_rate,
         bool is_right) {
     int error;
@@ -713,24 +801,30 @@ static int tfa9887_init(int fd, int sample_rate,
     uint8_t patch_data[MAX_PATCH_SIZE];
     int patch_sz;
     int channel;
+    uint16_t status, acs_status, mtp, mtp2, syctrl, otcStatus;
+    int timeout = 0;
+    uint32_t dummy_data[4];
     unsigned int pll_lock_bits = (TFA9887_STATUS_CLKS | TFA9887_STATUS_PLLS);
+    int v2;
+
+    ALOGE("tfa9887_init: start");
 
     if (is_right) {
         channel = 1;
-        patch_file = PATCH_R;
+        patch_file = MASTER_PATCH;
         speaker_file = SPKR_R;
     } else {
         channel = 0;
-        patch_file = PATCH_L;
+        patch_file = MASTER_PATCH;
         speaker_file = SPKR_L;
     }
 
     /* must wait until chip is ready otherwise no init happens */
-    error = tfa9887_wait_ready(fd, TFA9887_STATUS_MTPB, 0);
-    if (error != 0) {
-        ALOGE("tfa9887 MTP still busy");
-        goto priv_init_err;
-    }
+   // error = tfa9887_wait_ready(fd, TFA9887_STATUS_MTPB, 0);
+   // if (error != 0) {
+   //     ALOGE("tfa9887 MTP still busy");
+   //     goto priv_init_err;
+   // }
 
     /* do cold boot init */
     error = tfa9887_startup(fd);
@@ -753,23 +847,95 @@ static int tfa9887_init(int fd, int sample_rate,
         ALOGE("Unable to select input");
         goto priv_init_err;
     }
-    error = tfa9887_set_volume(fd, 0.0);
-    if (error != 0) {
-        ALOGE("Unable to set volume");
-        goto priv_init_err;
-    }
+ //   error = tfa9887_set_volume(fd, 0.0);
+ //   if (error != 0) {
+ //       ALOGE("Unable to set volume");
+ //       goto priv_init_err;
+ //   }
     error = tfa9887_power(fd, true);
     if (error != 0) {
         ALOGE("Unable to power up");
         goto priv_init_err;
     }
+    usleep(5000);
 
     /* wait for ready */
-    error = tfa9887_wait_ready(fd, pll_lock_bits, pll_lock_bits);
+    //error = tfa9887_wait_ready(fd, 2, 0);
+    //if (error != 0) {
+    //    ALOGE("Failed to lock PLLs");
+    //    goto priv_init_err;
+    //}
+
+
+    //void *buffer;
+    error = tfa9887_read_reg(fd, 0x00, &acs_status);
     if (error != 0) {
         ALOGE("Failed to lock PLLs");
         goto priv_init_err;
     }
+
+    ALOGE("coldstart status1:0x%x", acs_status);
+
+    if ((acs_status & 2)) {
+        ALOGE("tfa9887_read_reg winnering.");
+    } else {
+
+    timeout = 0;
+    while ((acs_status & 0x2) == 0 && timeout != 10) {
+        /* not ok yet */
+        error = tfa9887_read_reg(fd, 0x00, &acs_status);
+        usleep(1000);
+        if (error != 0) {
+            ALOGE("tfa9887_read_reg failed.");
+            return -1;
+        }
+        timeout++;
+        if (timeout > 10) {
+            ALOGE("timeout status:0x%x", (acs_status & 0x2));
+            //return -1;
+        }
+    }
+    }
+    dummy_data[0] = 0xffffff;
+    dummy_data[1] = 0x80000;
+    dummy_data[2] = 0x81070070;
+    dummy_data[3] = 0x1000000;
+
+    timeout = 0;
+    load_binary_data(fd, (uint8_t *) &dummy_data, 0x10);
+    tfa9887_read_reg(fd, 0x00, &status);
+    tfa9887_read_reg(fd, 0x9, &syctrl);
+    tfa9887_read_reg(fd, 0x80, &mtp);
+    ALOGD("status = 0x%x, mtp:0x%x, systcl:0x%x", status, mtp, syctrl);
+
+    error = tfa9887_read_reg(fd, 0x0, &acs_status);
+    if (error != 0) {
+        ALOGE("tfa9887_read_reg failed.");
+        return -1;
+    }
+/*
+    while ((acs_status & TFA98XX_STATUSREG_ACS_MSK) == 0) {
+        // not ok yet 
+        error = tfa9887_read_reg(fd, (acs_status & TFA98XX_STATUSREG_ACS_MSK), &acs_status);
+        if (error != 0) {
+            ALOGE("tfa9887_read_reg failed.");
+            return -1;
+        }
+        load_binary_data(fd, (uint8_t *) &dummy_data, 0x10);
+        tfa9887_read_reg(fd, 0x00, &status);
+        tfa9887_read_reg(fd, 0x9, &syctrl);
+        tfa9887_read_reg(fd, 0x80, &mtp);
+        ALOGD("status = 0x%x, mtp:0x%x, systcl:0x%x", status, mtp, syctrl);
+        usleep(5000);
+
+        timeout++;
+        if (timeout > 10) {
+            ALOGE("timeout status:0x%x", (acs_status & 0x800));
+            return -1;
+        }
+    }
+*/
+    ALOGE("coldstart status2:0x%x", acs_status);
 
     /* load firmware */
     patch_sz = read_file(patch_file, patch_data, MAX_PATCH_SIZE);
@@ -777,17 +943,48 @@ static int tfa9887_init(int fd, int sample_rate,
         ALOGE("Unable to read patch file");
         goto priv_init_err;
     }
+
     error = load_binary_data(fd, patch_data, patch_sz);
     if (error != 0) {
         ALOGE("Unable to load patch data");
         goto priv_init_err;
     }
-    error = tfa9887_load_dsp(fd, speaker_file);
-    if (error != 0) {
-        ALOGE("Unable to load speaker data");
-        goto priv_init_err;
+
+    tfa9887_read_reg(fd, 0x80, &mtp2);
+    if ( mtp2 & 1) {
+        tfa9887_write_reg(fd, 0xB, 0x5A);
+        tfa9887_write_reg(fd, 0x80, 1);
+        tfa9887_write_reg(fd, 0x62, 0x800);
+        tfa9887_write_reg(fd, 0x70, 1);
     }
 
+    timeout = 0;
+    do {
+        usleep(10000);
+        error = tfa9887_read_reg(fd, 0x00, &otcStatus);
+        if (error != 0) {
+            goto priv_init_err;
+        }
+        timeout++;
+        if (timeout > 50) {
+            goto priv_init_err;
+        }
+    } while ((status & TFA98XX_STATUSREG_MTPB_MSK)
+        == TFA98XX_STATUSREG_MTPB_MSK);
+
+    if (is_Dsp_Calibrated(fd)) {
+        ALOGE("DSP already calibrated. Calibration results loaded from MTP.");
+    } else {
+        ALOGE("DSP not yet calibrated. Calibration will start.");
+        error = tfa9887_load_dsp(fd, speaker_file);
+        if (error != 0) {
+            ALOGE("Unable to load speaker data");
+            goto priv_init_err;
+        }
+        //tfa9887_mute(fd, Tfa9887_Mute_Digital);
+        // TODO manual calibration
+    }
+    ALOGE("tfa9887_init: end");
 priv_init_err:
     return error;
 }
@@ -798,10 +995,10 @@ static int tfa9887_set_dsp_mode(int fd, Tfa9887_Mode_t mode, bool is_right) {
 
     if (is_right) {
         config = Tfa9887_Right_Mode_Configs;
-        ALOGV("Setting right mode to %d", mode);
+        ALOGD("Setting right mode to %d", mode);
     } else {
         config = Tfa9887_Left_Mode_Configs;
-        ALOGV("Setting left mode to %d", mode);
+        ALOGD("Setting left mode to %d", mode);
     }
 
     error = tfa9887_load_dsp(fd, config[mode].config);
@@ -817,6 +1014,12 @@ static int tfa9887_set_dsp_mode(int fd, Tfa9887_Mode_t mode, bool is_right) {
     error = tfa9887_load_dsp(fd, config[mode].eq);
     if (error != 0) {
         ALOGE("Unable to load EQ data");
+        goto set_dsp_err;
+    }
+
+    error = tfa9887_load_dsp(fd, config[mode].drc);
+    if (error != 0) {
+        ALOGE("Unable to load DRC data");
         goto set_dsp_err;
     }
 
@@ -875,11 +1078,11 @@ int tfa9887_set_mode(audio_mode_t mode) {
     reg_value[0] = 1;
     reg_value[1] = 1;
     if ((ret = ioctl(tfa9887_fd, TPA9887_KERNEL_LOCK, &reg_value)) != 0) {
-        ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+        ALOGE("ioctl %d failed. ret = %d", TPA9887_KERNEL_LOCK, ret);
         goto set_mode_unlock;
     }
     if ((ret = ioctl(tfa9887l_fd, TPA9887_KERNEL_LOCK, &reg_value)) != 0) {
-        ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+        ALOGE("ioctl %d failed. ret = %d", TPA9887_KERNEL_LOCK, ret);
         goto set_mode_unlock;
     }
 
@@ -890,21 +1093,68 @@ int tfa9887_set_mode(audio_mode_t mode) {
     }
 
     /* Mute to avoid pop */
-    ret = tfa9887_mute(tfa9887_fd, Tfa9887_Mute_Digital);
-    ret = tfa9887_mute(tfa9887l_fd, Tfa9887_Mute_Digital);
+    //ret = tfa9887_mute(tfa9887_fd, Tfa9887_Mute_Digital);
+    //ret = tfa9887_mute(tfa9887l_fd, Tfa9887_Mute_Digital);
+
+    /* Enable DSP if necessary */
+    reg_value[0] = 1; // length (unused)
+    reg_value[1] = 0; // enable
+    if (!tfa9887_initialized) {
+        ALOGE("enable DSP for tfa9887R");
+        if ((ret = ioctl(tfa9887_fd, TPA9887_ENABLE_DSP, &reg_value)) != 0) {
+            ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+            goto set_mode_unmute;
+        }
+    }
 
     /* Initialize if necessary */
     if (!tfa9887_initialized) {
+        ALOGE("initialize tfa9887R");
         ret = tfa9887_init(tfa9887_fd, TFA9887_DEFAULT_RATE, true);
         if (ret != 0) {
             ALOGE("Failed to initialize tfa9887R, DSP not enabled");
             goto set_mode_unmute;
         }
+        tfa9887_initialized = true;
     }
+
+    /* Enable DSP if necessary */
+    reg_value[0] = 1; // length (unused)
+    reg_value[1] = 1; // enable
+    if (tfa9887_initialized) {
+        ALOGE("enable DSP for tfa9887R");
+        if ((ret = ioctl(tfa9887_fd, TPA9887_ENABLE_DSP, &reg_value)) != 0) {
+            ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+            goto set_mode_unmute;
+        }
+    }
+
+    reg_value[0] = 1; // len (unused)
+    reg_value[1] = 0; // enable
     if (!tfa9887l_initialized) {
+        ALOGE("enable DSP for tfa9887L");
+        if ((ret = ioctl(tfa9887l_fd, TPA9887_ENABLE_DSP, &reg_value)) != 0) {
+            ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+            goto set_mode_unmute;
+        }
+    }
+
+    if (!tfa9887l_initialized) {
+        ALOGE("initialize tfa9887L");
         ret = tfa9887_init(tfa9887l_fd, TFA9887_DEFAULT_RATE, false);
         if (ret != 0) {
             ALOGE("Failed to initialize tfa9887L, DSP not enabled");
+            goto set_mode_unmute;
+        }
+        tfa9887l_initialized = true;
+    }
+
+    reg_value[0] = 1; // len (unused)
+    reg_value[1] = 1; // enable
+    if (tfa9887l_initialized) {
+        ALOGE("enable DSP for tfa9887L");
+        if ((ret = ioctl(tfa9887l_fd, TPA9887_ENABLE_DSP, &reg_value)) != 0) {
+            ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
             goto set_mode_unmute;
         }
     }
@@ -924,24 +1174,6 @@ int tfa9887_set_mode(audio_mode_t mode) {
     ALOGI("Set DSP mode to %d", dsp_mode);
     tfa9887_mode = dsp_mode;
 
-    /* Enable DSP if necessary */
-    reg_value[0] = 1;
-    reg_value[0] = 1;
-    if (!tfa9887_initialized) {
-        if ((ret = ioctl(tfa9887_fd, TPA9887_ENABLE_DSP, &reg_value)) != 0) {
-            ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
-            goto set_mode_unmute;
-        }
-        tfa9887_initialized = true;
-    }
-    if (!tfa9887l_initialized) {
-        if ((ret = ioctl(tfa9887l_fd, TPA9887_ENABLE_DSP, &reg_value)) != 0) {
-            ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
-            goto set_mode_unmute;
-        }
-        tfa9887l_initialized = true;
-    }
-
 set_mode_unmute:
     ret = tfa9887_mute(tfa9887_fd, Tfa9887_Mute_Off);
     ret = tfa9887_mute(tfa9887l_fd, Tfa9887_Mute_Off);
@@ -951,10 +1183,10 @@ set_mode_unlock:
     reg_value[0] = 1;
     reg_value[1] = 0;
     if ((ret = ioctl(tfa9887_fd, TPA9887_KERNEL_LOCK, &reg_value)) != 0) {
-        ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+        ALOGE("ioctl %d failed. ret = %d", TPA9887_KERNEL_LOCK, ret);
     }
     if ((ret = ioctl(tfa9887l_fd, TPA9887_KERNEL_LOCK, &reg_value)) != 0) {
-        ALOGE("ioctl %d failed. ret = %d", TPA9887_ENABLE_DSP, ret);
+        ALOGE("ioctl %d failed. ret = %d", TPA9887_KERNEL_LOCK, ret);
     }
 
     close(tfa9887_fd);

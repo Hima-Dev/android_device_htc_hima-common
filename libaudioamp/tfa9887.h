@@ -17,6 +17,23 @@
 #define TFA9887_DEVICE "/dev/tfa9887"
 #define TFA9887L_DEVICE "/dev/tfa9887l"
 
+#define ACOUSTIC_IOCTL_MAGIC 'p'
+#define ACOUSTIC_SET_Q6_EFFECT      _IOW(ACOUSTIC_IOCTL_MAGIC, 43, unsigned)
+#define ACOUSTIC_GET_HTC_REVISION   _IOW(ACOUSTIC_IOCTL_MAGIC, 44, unsigned)
+#define ACOUSTIC_GET_HW_COMPONENT   _IOW(ACOUSTIC_IOCTL_MAGIC, 45, unsigned)
+#define ACOUSTIC_GET_DMIC_INFO      _IOW(ACOUSTIC_IOCTL_MAGIC, 46, unsigned)
+#define ACOUSTIC_UPDATE_BEATS_STATUS    _IOW(ACOUSTIC_IOCTL_MAGIC, 47, unsigned)
+#define ACOUSTIC_UPDATE_LISTEN_NOTIFICATION _IOW(ACOUSTIC_IOCTL_MAGIC, 48, unsigned)
+#define ACOUSTIC_GET_HW_REVISION    _IOR(ACOUSTIC_IOCTL_MAGIC, 49, struct device_info)
+#define ACOUSTIC_CONTROL_WAKELOCK   _IOW(ACOUSTIC_IOCTL_MAGIC, 77, unsigned)
+#define ACOUSTIC_DUMMY_WAKELOCK     _IOW(ACOUSTIC_IOCTL_MAGIC, 78, unsigned)
+#define ACOUSTIC_AMP_CTRL       _IOR(ACOUSTIC_IOCTL_MAGIC, 50, unsigned)
+#define ACOUSTIC_GET_MID        _IOW(ACOUSTIC_IOCTL_MAGIC, 51, unsigned)
+#define ACOUSTIC_RAMDUMP        _IOW(ACOUSTIC_IOCTL_MAGIC, 99, unsigned)
+#define ACOUSTIC_KILL_PID       _IOW(ACOUSTIC_IOCTL_MAGIC, 88, unsigned)
+#define ACOUSTIC_UPDATE_DQ_STATUS   _IOW(ACOUSTIC_IOCTL_MAGIC, 52, unsigned)
+
+
 #define TPA9887_IOCTL_MAGIC 'a'
 #define TPA9887_WRITE_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x01, unsigned int)
 #define TPA9887_READ_CONFIG	_IOW(TPA9887_IOCTL_MAGIC, 0x02, unsigned int)
@@ -30,36 +47,50 @@
 #define MAX_PATCH_SIZE 3072
 #define MAX_PARAM_SIZE 768
 
+#define MASTER_PATCH "/system/etc/tfa/tfa9895.patch"
+
+// legacy?
 #define PATCH_R "/system/etc/tfa/tfa9887.patch"
 #define PATCH_L "/system/etc/tfa/tfa9887_l.patch"
-#define SPKR_R "/system/etc/tfa/deftcoefA.speaker"
-#define SPKR_L "/system/etc/tfa/deftcoefA_l.speaker"
 
-#define CONFIG_PLAYBACK_R "/system/etc/tfa/playback.config"
-#define CONFIG_PLAYBACK_L "/system/etc/tfa/playback_l.config"
+#define SPKR_R "/system/etc/tfa/tfa9895.speaker"
+#define SPKR_L "/system/etc/tfa/tfa9895_l.speaker"
+
+#define CONFIG_TFA9887 "/system/etc/tfa/tfa9895.config"
+
+#define CONFIG_PLAYBACK_R "/system/etc/tfa/playbackwoofer.config"
+#define CONFIG_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.config"
 #define CONFIG_RING_R "/system/etc/tfa/ring.config"
 #define CONFIG_RING_L "/system/etc/tfa/ring_l.config"
 #define CONFIG_VOICE_R "/system/etc/tfa/voice.config"
 #define CONFIG_VOICE_L "/system/etc/tfa/voice_l.config"
 
-#define PRESET_PLAYBACK_R "/system/etc/tfa/playback.preset"
-#define PRESET_PLAYBACK_L "/system/etc/tfa/playback_l.preset"
+#define PRESET_PLAYBACK_R "/system/etc/tfa/playbackwoofer.preset"
+#define PRESET_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.preset"
 #define PRESET_RING_R "/system/etc/tfa/ring.preset"
 #define PRESET_RING_L "/system/etc/tfa/ring_l.preset"
 #define PRESET_VOICE_R "/system/etc/tfa/voice.preset"
 #define PRESET_VOICE_L "/system/etc/tfa/voice_l.preset"
 
-#define EQ_PLAYBACK_R "/system/etc/tfa/playback.eq"
-#define EQ_PLAYBACK_L "/system/etc/tfa/playback_l.eq"
+#define EQ_PLAYBACK_R "/system/etc/tfa/playbackwoofer.eq"
+#define EQ_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.eq"
 #define EQ_RING_R "/system/etc/tfa/ring.eq"
 #define EQ_RING_L "/system/etc/tfa/ring_l.eq"
 #define EQ_VOICE_R "/system/etc/tfa/voice.eq"
 #define EQ_VOICE_L "/system/etc/tfa/voice_l.eq"
 
+#define DRC_PLAYBACK_R "/system/etc/tfa/playbackwoofer.drc"
+#define DRC_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.drc"
+#define DRC_RING_R "/system/etc/tfa/ring.drc"
+#define DRC_RING_L "/system/etc/tfa/ring_l.drc"
+#define DRC_VOICE_R "/system/etc/tfa/voice.drc"
+#define DRC_VOICE_L "/system/etc/tfa/voice_l.drc"
+
 struct mode_config {
     const char *config;
     const char *preset;
     const char *eq;
+    const char *drc;
 };
 
 typedef enum Tfa9887_Mode {
@@ -71,37 +102,43 @@ typedef enum Tfa9887_Mode {
 
 const struct mode_config Tfa9887_Right_Mode_Configs[Tfa9887_Num_Modes] = {
     {   /* Playback */
-        .config = CONFIG_PLAYBACK_R,
+        .config = CONFIG_TFA9887,
         .preset = PRESET_PLAYBACK_R,
-        .eq = EQ_PLAYBACK_R
+        .eq = EQ_PLAYBACK_R,
+        .drc = DRC_PLAYBACK_R
     },
     {   /* Ring */
-        .config = CONFIG_RING_R,
+        .config = CONFIG_TFA9887,
         .preset = PRESET_RING_R,
-        .eq = EQ_RING_R
+        .eq = EQ_RING_R,
+        .drc = DRC_RING_R
     },
     {   /* Voice */
-        .config = CONFIG_VOICE_R,
+        .config = CONFIG_TFA9887,
         .preset = PRESET_VOICE_R,
-        .eq = EQ_VOICE_R
+        .eq = EQ_VOICE_R,
+        .drc = DRC_VOICE_R
     }
 };
 
 const struct mode_config Tfa9887_Left_Mode_Configs[Tfa9887_Num_Modes] = {
     {   /* Playback */
-        .config = CONFIG_PLAYBACK_L,
+        .config = CONFIG_TFA9887,
         .preset = PRESET_PLAYBACK_L,
         .eq = EQ_PLAYBACK_L,
+        .drc = DRC_PLAYBACK_L
     },
     {   /* Ring */
-        .config = CONFIG_RING_L,
+        .config = CONFIG_TFA9887,
         .preset = PRESET_RING_L,
-        .eq = EQ_RING_L
+        .eq = EQ_RING_L,
+        .drc = DRC_RING_L
     },
     {   /* Voice */
-        .config = CONFIG_VOICE_L,
+        .config = CONFIG_TFA9887,
         .preset = PRESET_VOICE_L,
-        .eq = EQ_VOICE_L
+        .eq = EQ_VOICE_L,
+        .drc = DRC_VOICE_L
     }
 };
 
@@ -129,9 +166,13 @@ typedef enum {
 /* RPC commands */
 #define PARAM_SET_LSMODEL        0x06  // Load a full model into SpeakerBoost.
 #define PARAM_SET_LSMODEL_SEL    0x07  // Select one of the default models present in Tfa9887 ROM.
+
 #define PARAM_SET_EQ             0x0A  // 2 Equaliser Filters.
 #define PARAM_SET_PRESET         0x0D  // Load a preset
 #define PARAM_SET_CONFIG         0x0E  // Load a config
+#define PARAM_SET_DRC            0x0F  // Load DRC file
+#define SB_PARAM_SET_AGCINS      0x10
+
 #define PARAM_GET_RE0            0x85  /* gets the speaker calibration impedance (@25 degrees celsius) */
 #define PARAM_GET_LSMODEL        0x86  // Gets current LoudSpeaker Model.
 #define PARAM_GET_STATE          0xC0
@@ -192,9 +233,14 @@ typedef enum {
 #define TFA9887_STATUS_ACS        (1<<11) /* cold started */
 #define TFA9887_STATUS_SWS        (1<<12) /* amplifier switching */
 
+#define TFA98XX_STATUSREG_ACS_MSK        0x800
+#define TFA98XX_STATUSREG_MTPB_MSK       0x100
+
 /* MTP bits */
 #define TFA9887_MTP_MTPOTC        (1<<0)  /* one time calibration */
 #define TFA9887_MTP_MTPEX         (1<<1)  /* one time calibration done */
+
+#define TFA98XX_STATUSREG_AREFS_MSK      0x800
 
 #define TFA9887_STATUS (0x00)
 #define TFA9887_BATTERYVOLTAGE (0x01)
@@ -222,6 +268,34 @@ typedef enum {
 #define TFA9887_CF_MEM (0x72)
 #define TFA9887_CF_STATUS (0x73)
 #define TFA9887_MTP (0x80)
+
+enum ACOU_AMP_CTRL {
+    AMP_READ = 0,
+    AMP_WRITE,
+};
+
+enum AMP_TYPE {
+    AMP_HEADPONE = 0,
+    AMP_SPEAKER,
+    AMP_RECEIVER,
+};
+
+struct amp_ctrl {
+    enum ACOU_AMP_CTRL ctrl;
+    enum AMP_TYPE type;
+    unsigned short slave;
+    unsigned int reg;
+    unsigned int val;
+};
+
+struct speaker_handle {
+    //int in_use;
+    int fd;
+    unsigned char slave_address;
+    unsigned short rev;
+    //enum featureSupport supportDrc;
+    //enum featureSupport supportFramework;
+};
 
 int tfa9887_init(void);
 int tfa9887_set_mode(audio_mode_t mode);
