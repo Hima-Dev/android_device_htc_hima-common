@@ -1,0 +1,3 @@
+allow ueventd camera_socket:chr_file { create setattr };
+allow ueventd touchpanel_sysfs:file { getattr relabelto };
+allow ueventd vibeamp_sysfs:file getattr;

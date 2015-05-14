@@ -1,0 +1,1 @@
+allow vibeamp_sysfs sysfs:filesystem associate;

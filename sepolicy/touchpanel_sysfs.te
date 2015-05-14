@@ -1,0 +1,1 @@
+allow touchpanel_sysfs sysfs:filesystem associate;
