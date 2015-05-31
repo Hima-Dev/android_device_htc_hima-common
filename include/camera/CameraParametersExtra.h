@@ -43,6 +43,20 @@ const char CameraParameters::POST_PROCESSING_BYPASS[] = "bypass"; \
 const char CameraParameters::POST_PROCESSING_DELAY[] = "delay"; \
 const char CameraParameters::SCENE_MODE_OFF[] = "off"; \
 const char CameraParameters::SCENE_MODE_TEXT[] = "text"; \
+const char CameraParameters::DUM_SCENE_MODE_BURST[] = "burst"; \
+const char CameraParameters::DUM_SCENE_MODE_MANUAL[] = "manual"; \
+const char CameraParameters::DU_ISO_AUTO[] = "iso-auto" ; \
+const char CameraParameters::DU_ISO_HJR[] = "iso-hjr" ; \
+const char CameraParameters::DU_ISO_100[] = "iso-100" ; \
+const char CameraParameters::DU_ISO_200[] = "iso-200" ; \
+const char CameraParameters::DU_ISO_400[] = "iso-400" ; \
+const char CameraParameters::DU_ISO_800[] = "iso-800" ; \
+const char CameraParameters::DU_ISO_1600[] = "iso-1600" ; \
+const char CameraParameters::DUM_VIDEO_HFR_OFF[] = "hfr-off" ; \
+const char CameraParameters::DUM_VIDEO_HFR_2X[] = "hfr-2x" ; \
+const char CameraParameters::DUM_VIDEO_HFR_3X[] = "hfr-3x" ; \
+const char CameraParameters::DUM_VIDEO_HFR_4X[] = "hfr-4x" ; \
+const char CameraParameters::DUM_VIDEO_HFR_5X[] = "hfr-5x" ; \
 const char CameraParameters::BURST_MODE_LIMIT20[] = "limit-20"; \
 const char CameraParameters::BURST_MODE_UNLIMITED[] = "unlimited"; \
 const char CameraParameters::OIS_MODE_OFF[] = "off"; \
@@ -100,6 +114,20 @@ const char *CameraParameters::getZsl() const { return get("zsl");};
     static const char POST_PROCESSING_DELAY[]; \
     static const char SCENE_MODE_OFF[]; \
     static const char SCENE_MODE_TEXT[]; \
+    static const char DUM_SCENE_MODE_BURST[]; \
+    static const char DUM_SCENE_MODE_MANUAL[]; \
+    static const char DU_ISO_AUTO[]; \
+    static const char DU_ISO_HJR[]; \
+    static const char DU_ISO_100[]; \
+    static const char DU_ISO_200[]; \
+    static const char DU_ISO_400[]; \
+    static const char DU_ISO_800[]; \
+    static const char DU_ISO_1600[]; \
+    static const char DUM_VIDEO_HFR_OFF[]; \
+    static const char DUM_VIDEO_HFR_2X[]; \
+    static const char DUM_VIDEO_HFR_3X[]; \
+    static const char DUM_VIDEO_HFR_4X[]; \
+    static const char DUM_VIDEO_HFR_5X[]; \
     static const char BURST_MODE_LIMIT20[]; \
     static const char BURST_MODE_UNLIMITED[]; \
     static const char OIS_MODE_OFF[]; \
