@@ -45,6 +45,10 @@ const char CameraParameters::SCENE_MODE_OFF[] = "off"; \
 const char CameraParameters::SCENE_MODE_TEXT[] = "text"; \
 const char CameraParameters::DUM_SCENE_MODE_BURST[] = "burst"; \
 const char CameraParameters::DUM_SCENE_MODE_MANUAL[] = "manual"; \
+const char CameraParameters::DUM_SCENE_MODE_TEXT[] = "text" ; \
+const char CameraParameters::DUM_SCENE_MODE_ZOE[] = "zoe" ; \
+const char CameraParameters::DUM_SCENE_MODE_PANORAMA[] = "panorama" ; \
+const char CameraParameters::DUM_SCENE_MODE_PANORAMA_360[] = "360-panorama" ; \
 const char CameraParameters::DU_ISO_AUTO[] = "iso-auto" ; \
 const char CameraParameters::DU_ISO_HJR[] = "iso-hjr" ; \
 const char CameraParameters::DU_ISO_100[] = "iso-100" ; \
@@ -116,6 +120,10 @@ const char *CameraParameters::getZsl() const { return get("zsl");};
     static const char SCENE_MODE_TEXT[]; \
     static const char DUM_SCENE_MODE_BURST[]; \
     static const char DUM_SCENE_MODE_MANUAL[]; \
+    static const char DUM_SCENE_MODE_TEXT[]; \
+    static const char DUM_SCENE_MODE_ZOE[]; \
+    static const char DUM_SCENE_MODE_PANORAMA[]; \
+    static const char DUM_SCENE_MODE_PANORAMA_360[]; \
     static const char DU_ISO_AUTO[]; \
     static const char DU_ISO_HJR[]; \
     static const char DU_ISO_100[]; \
