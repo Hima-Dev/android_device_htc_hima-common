@@ -61,6 +61,20 @@ const char CameraParameters::DUM_VIDEO_HFR_2X[] = "hfr-2x" ; \
 const char CameraParameters::DUM_VIDEO_HFR_3X[] = "hfr-3x" ; \
 const char CameraParameters::DUM_VIDEO_HFR_4X[] = "hfr-4x" ; \
 const char CameraParameters::DUM_VIDEO_HFR_5X[] = "hfr-5x" ; \
+const char CameraParameters::DUM_KEY_FASTVIDEO_FPS60_1080P_SUPPORTED[] = "60fps-1080p-video" ; \
+const char CameraParameters::DUM_KEY_SLOW_MOTION_SUPPORTED[] = "slow-motion-support" ; \
+const char CameraParameters::DUM_KEY_SLOW_MOTION_MULTIPLE[] = "slow-motion-multiple" ; \
+const char CameraParameters::DUM_KEY_SLOW_MOTION_RES[] = "slow-motion-res" ; \
+const char CameraParameters::DUM_KEY_FASTVIDEO_FPS60_SUPPORTED[] = "60fps-video" ; \
+const char CameraParameters::DUM_KEY_CONTIBURST_TAKE[] = "contiburst" ; \
+const char CameraParameters::DUM_KEY_CONTIBURST_SUPPORTED_MODE[] = "contiburst-supported" ; \
+const char CameraParameters::DUM_KEY_NON_ZSL_MANUAL_MODE[] = "non-zsl-manual" ; \
+const char CameraParameters::DUM_KEY_VIDEO_MODE[] = "video-mode" ; \
+const char CameraParameters::DUM_KEY_FORCE_USE_AUDIO_ENABLED[] = "forceuseaudio"; \
+const char CameraParameters::DUM_KEY_SLOW_MOTION_VERSION[] = "slow-motion-version" ; \
+const char CameraParameters::DUM_KEY_SAVE_MIRROR[] = "save-mirror" ; \
+const char CameraParameters::DUM_DENOISE_ON[] = "denoise-on" ; \
+const char CameraParameters::DUM_DENOISE_OFF[] = "denoise-off" ; \
 const char CameraParameters::BURST_MODE_LIMIT20[] = "limit-20"; \
 const char CameraParameters::BURST_MODE_UNLIMITED[] = "unlimited"; \
 const char CameraParameters::OIS_MODE_OFF[] = "off"; \
@@ -79,7 +93,8 @@ const char CameraParameters::KEY_ZSL[] = "zsl"; \
 const char CameraParameters::KEY_CAMERA_MODE[] = "camera-mode"; \
 const char CameraParameters::KEY_SMILEINFO_BYFACE_SUPPORTED[] = "smileinfo-byface-supported"; \
 const char CameraParameters::ZSL_OFF[] = "off"; \
-void CameraParameters::getBrightnessLumaTargetSet(int *magic, int *sauce) const{}; \
+void CameraParameters::DUM_check_flashlight_restriction(void){}; \
+void CameraParameters::DUM_getBrightnessLumaTargetSet(int *magic, int *sauce) const{}; \
 void CameraParameters::setBrightnessLumaTargetSet(int brightness, int luma) { \
     char str[32]; \
     snprintf(str, sizeof(str),"%d,%d", brightness, luma); \
@@ -124,6 +139,20 @@ const char *CameraParameters::getZsl() const { return get("zsl");};
     static const char DUM_SCENE_MODE_ZOE[]; \
     static const char DUM_SCENE_MODE_PANORAMA[]; \
     static const char DUM_SCENE_MODE_PANORAMA_360[]; \
+    static const char DUM_KEY_FASTVIDEO_FPS60_1080P_SUPPORTED[]; \
+    static const char DUM_KEY_SLOW_MOTION_SUPPORTED[]; \
+    static const char DUM_KEY_SLOW_MOTION_MULTIPLE[]; \
+    static const char DUM_KEY_SLOW_MOTION_RES[]; \
+    static const char DUM_KEY_FASTVIDEO_FPS60_SUPPORTED[]; \
+    static const char DUM_KEY_CONTIBURST_TAKE[]; \
+    static const char DUM_KEY_CONTIBURST_SUPPORTED_MODE[]; \
+    static const char DUM_KEY_NON_ZSL_MANUAL_MODE[]; \
+    static const char DUM_KEY_VIDEO_MODE[]; \
+    static const char DUM_KEY_FORCE_USE_AUDIO_ENABLED[]; \
+    static const char DUM_KEY_SLOW_MOTION_VERSION[]; \
+    static const char DUM_KEY_SAVE_MIRROR[]; \
+    static const char DUM_DENOISE_ON[]; \
+    static const char DUM_DENOISE_OFF[]; \
     static const char DU_ISO_AUTO[]; \
     static const char DU_ISO_HJR[]; \
     static const char DU_ISO_100[]; \
@@ -154,8 +183,9 @@ const char *CameraParameters::getZsl() const { return get("zsl");};
     static const char KEY_CAMERA_MODE[]; \
     static const char KEY_SMILEINFO_BYFACE_SUPPORTED[]; \
     static const char ZSL_OFF[]; \
+    void DUM_check_flashlight_restriction(void); \
     void getRawSize(int *magic, int *sauce) const; \
-    void getBrightnessLumaTargetSet(int *magic, int *sauce) const; \
+    void DUM_getBrightnessLumaTargetSet(int *magic, int *sauce) const; \
     void setBrightnessLumaTargetSet(int brightness, int luma); \
     void setZsl(const char *sauce); \
     const char *getZsl() const;
@@ -193,7 +223,7 @@ const char CameraParameters_EXT::KEY_SLOW_MOTION_VERSION[] = "slow-motion-versio
 const char CameraParameters_EXT::KEY_SAVE_MIRROR[] = "save-mirror" ; \
 const char CameraParameters_EXT::DENOISE_ON[] = "denoise-on" ; \
 const char CameraParameters_EXT::DENOISE_OFF[] = "denoise-off" ; \
-void CameraParameters_EXT::check_flashlight_restriction() {}; \
+void CameraParameters_EXT::check_flashlight_restriction(const char *sauce) {}; \
 void CameraParameters_EXT::getBrightnessLumaTargetSet(int *magic, int *sauce) const{}; \
 void CameraParameters_EXT::setBrightnessLumaTargetSet(int brightness, int luma) { \
     char str[32]; \
