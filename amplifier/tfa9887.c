@@ -32,6 +32,48 @@
 
 /* Module variables */
 
+const struct mode_config Tfa9887_Right_Mode_Configs[Tfa9887_Num_Modes] = {
+    {   /* Playback */
+        .config = CONFIG_TFA9887,
+        .preset = PRESET_PLAYBACK_R,
+        .eq = EQ_PLAYBACK_R,
+        .drc = DRC_PLAYBACK_R
+    },
+    {   /* Ring */
+        .config = CONFIG_TFA9887,
+        .preset = PRESET_RING_R,
+        .eq = EQ_RING_R,
+        .drc = DRC_RING_R
+    },
+    {   /* Voice */
+        .config = CONFIG_TFA9887,
+        .preset = PRESET_VOICE_R,
+        .eq = EQ_VOICE_R,
+        .drc = DRC_VOICE_R
+    }
+};
+
+const struct mode_config Tfa9887_Left_Mode_Configs[Tfa9887_Num_Modes] = {
+    {   /* Playback */
+        .config = CONFIG_TFA9887,
+        .preset = PRESET_PLAYBACK_L,
+        .eq = EQ_PLAYBACK_L,
+        .drc = DRC_PLAYBACK_L
+    },
+    {   /* Ring */
+        .config = CONFIG_TFA9887,
+        .preset = PRESET_RING_L,
+        .eq = EQ_RING_L,
+        .drc = DRC_RING_L
+    },
+    {   /* Voice */
+        .config = CONFIG_TFA9887,
+        .preset = PRESET_VOICE_L,
+        .eq = EQ_VOICE_L,
+        .drc = DRC_VOICE_L
+    }
+};
+
 static bool tfa9887_initialized = false;
 static bool tfa9887l_initialized = false;
 static bool dsp_enabled = false;
@@ -915,7 +957,7 @@ static int tfa9887_init(int fd, int sample_rate,
     }
 /*
     while ((acs_status & TFA98XX_STATUSREG_ACS_MSK) == 0) {
-        // not ok yet 
+        // not ok yet
         error = tfa9887_read_reg(fd, (acs_status & TFA98XX_STATUSREG_ACS_MSK), &acs_status);
         if (error != 0) {
             ALOGE("tfa9887_read_reg failed.");
