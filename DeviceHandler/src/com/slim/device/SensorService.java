@@ -41,7 +41,7 @@ import com.slim.device.settings.ScreenOffGesture;
 
 public class SensorService extends Service implements SensorEventListener {
 
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
 
     public static final String TAG = "SensorService";
 
@@ -79,6 +79,7 @@ public class SensorService extends Service implements SensorEventListener {
         Iterator iterator = mSensorManager.getSensorList(-1).iterator();
         while (iterator.hasNext()) {
             Sensor sensor = (Sensor) iterator.next();
+            if (DEBUG) Log.d(TAG, "sensor name : " + sensor.getName());
             if (sensor.getName().equals(HTC_GESTURES)) {
                 if (DEBUG) Log.d(TAG, "found gesture sensor");
                 mSensor = sensor;
