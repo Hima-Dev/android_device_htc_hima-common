@@ -108,7 +108,9 @@ void CameraParameters_EXT::setBrightnessLumaTargetSet(int brightness, int luma) 
     char str[32]; \
     snprintf(str, sizeof(str),"%d,%d", brightness, luma); \
     set("brightness-luma-target-set", str); \
-};
+}; \
+CameraParameters_EXT::CameraParameters_EXT(CameraParameters *parent) {}; \
+CameraParameters_EXT::~CameraParameters_EXT() {};
 
 #define CAMERA_PARAMETERS_EXTRA_H \
     static const char KEY_TIME_CONS_POST_PROCESSING[]; \
