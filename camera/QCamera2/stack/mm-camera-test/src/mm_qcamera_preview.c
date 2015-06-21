@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -42,6 +42,7 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
   mm_camera_buf_def_t *frame;
   metadata_buffer_t *pMetadata;
+  cam_auto_focus_data_t *focus_data;
 
   if (NULL == bufs || NULL == user_data) {
       CDBG_ERROR("%s: bufs or user_data are not valid ", __func__);
@@ -94,8 +95,9 @@ static void mm_app_metadata_notify_cb(mm_camera_super_buf_t *bufs,
   memcpy(pme->metadata, frame->buffer, sizeof(metadata_buffer_t));
 
   pMetadata = (metadata_buffer_t *)frame->buffer;
-  IF_META_AVAILABLE(cam_auto_focus_data_t, focus_data, CAM_INTF_META_AUTOFOCUS_DATA,
-        pMetadata) {
+  if (IS_META_AVAILABLE(CAM_INTF_META_AUTOFOCUS_DATA, pMetadata)) {
+    focus_data = (cam_auto_focus_data_t *)
+      POINTER_OF_META(CAM_INTF_META_AUTOFOCUS_DATA, pMetadata);
     if (focus_data->focus_state == CAM_AF_FOCUSED ||
       focus_data->focus_state == CAM_AF_NOT_FOCUSED) {
       CDBG_ERROR("%s: AutoFocus Done Call Back Received\n",__func__);
@@ -191,7 +193,7 @@ static void mm_app_preview_notify_cb(mm_camera_super_buf_t *bufs,
 static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
                                  void *user_data)
 {
-    int rc = MM_CAMERA_OK;
+    int rc = 0;
     uint32_t i = 0;
     mm_camera_test_obj_t *pme = (mm_camera_test_obj_t *)user_data;
     mm_camera_channel_t *channel = NULL;
@@ -314,22 +316,16 @@ static void mm_app_zsl_notify_cb(mm_camera_super_buf_t *bufs,
     }*/
 
     if ( pme->enable_reproc && ( NULL != pme->reproc_stream ) ) {
-
-        if (NULL != md_frame) {
-            rc = mm_app_do_reprocess(pme,
-                    m_frame,
-                    md_frame->buf_idx,
-                    bufs,
-                    md_stream);
-
-            if (MM_CAMERA_OK != rc ) {
-                CDBG_ERROR("%s: reprocess failed rc = %d", __func__, rc);
-            }
-        } else {
-            CDBG_ERROR("%s: md_frame is null\n", __func__);
+        rc = mm_app_do_reprocess(pme,
+                                 m_frame,
+                                 md_frame->buf_idx,
+                                 bufs,
+                                 md_stream);
+        if (MM_CAMERA_OK != rc ) {
+            CDBG_ERROR("%s: reprocess failed rc = %d", __func__, rc);
         }
 
-      return;
+        return;
     }
 
     if ( pme->encodeJpeg ) {

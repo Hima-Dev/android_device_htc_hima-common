@@ -11,7 +11,7 @@ MM_V4L2_DRIVER_LIST += msm_bronze
 MM_V4L2_DRIVER_LIST += msm8916
 MM_V4L2_DRIVER_LIST += msm8994
 MM_V4L2_DRIVER_LIST += msm8084
-MM_V4L2_DRIVER_LIST += msm8992
+
 include $(call all-subdir-makefiles)
 
 endif

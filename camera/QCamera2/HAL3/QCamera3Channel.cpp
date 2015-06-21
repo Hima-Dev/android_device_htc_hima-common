@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -644,8 +644,8 @@ int32_t QCamera3RegularChannel::initialize(cam_is_type_t isType)
         return -EINVAL;
     }
 
-    streamDim.width = (int32_t)mWidth;
-    streamDim.height = (int32_t)mHeight;
+    streamDim.width = mWidth;
+    streamDim.height = mHeight;
 
     rc = QCamera3Channel::addStream(mStreamType,
             streamFormat,
@@ -805,11 +805,6 @@ void QCamera3RegularChannel::streamCbRoutine(
     int32_t resultFrameNumber;
     camera3_stream_buffer_t result;
 
-    if (NULL == stream) {
-        ALOGE("%s: Invalid stream", __func__);
-        return;
-    }
-
     if(!super_frame) {
          ALOGE("%s: Invalid Super buffer",__func__);
          return;
@@ -828,7 +823,9 @@ void QCamera3RegularChannel::streamCbRoutine(
     frameIndex = (uint8_t)super_frame->bufs[0]->buf_idx;
     if(frameIndex >= mNumBufs) {
          ALOGE("%s: Error, Invalid index for buffer",__func__);
-         stream->bufDone(frameIndex);
+         if(stream) {
+             stream->bufDone(frameIndex);
+         }
          return;
     }
 
@@ -841,17 +838,6 @@ void QCamera3RegularChannel::streamCbRoutine(
     result.status = CAMERA3_BUFFER_STATUS_OK;
     result.acquire_fence = -1;
     result.release_fence = -1;
-    int32_t rc = stream->bufRelease(frameIndex);
-    if (NO_ERROR != rc) {
-        ALOGE("%s: Error %d releasing stream buffer %d",
-                __func__, rc, frameIndex);
-    }
-
-    rc = mMemory.unregisterBuffer(frameIndex);
-    if (NO_ERROR != rc) {
-        ALOGE("%s: Error %d unregistering stream buffer %d",
-                __func__, rc, frameIndex);
-    }
 
     if (0 <= resultFrameNumber) {
         mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, mUserData);
@@ -919,7 +905,7 @@ int32_t QCamera3MetadataChannel::initialize(cam_is_type_t isType)
 
     mIsType = isType;
     rc = QCamera3Channel::addStream(CAM_STREAM_TYPE_METADATA, CAM_FORMAT_MAX,
-            streamDim, (uint8_t)mNumBuffers, mPostProcMask, mIsType);
+        streamDim, mNumBuffers, mPostProcMask, mIsType);
     if (rc < 0) {
         ALOGE("%s: addStream failed", __func__);
     }
@@ -1066,40 +1052,35 @@ void QCamera3RawChannel::convertLegacyToRaw16(mm_camera_buf_def_t *frame)
     // where p0 to p5 are 6 pixels (each is 10bit)_and most significant
     // 4 bits are 0s. Each 64bit word contains 6 pixels.
 
-  QCamera3Stream *stream = getStreamByIndex(0);
-  if (stream != NULL) {
-      cam_dimension_t dim;
-      memset(&dim, 0, sizeof(dim));
-      stream->getFrameDimension(dim);
+    QCamera3Stream *stream = getStreamByIndex(0);
+    cam_dimension_t dim;
+    memset(&dim, 0, sizeof(dim));
+    stream->getFrameDimension(dim);
 
-      cam_frame_len_offset_t offset;
-      memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-      stream->getFrameOffset(offset);
+    cam_frame_len_offset_t offset;
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+    stream->getFrameOffset(offset);
 
-      uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
-      uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
+    uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
+    uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
 
-      // In-place format conversion.
-      // Raw16 format always occupy more memory than opaque raw10.
-      // Convert to Raw16 by iterating through all pixels from bottom-right
-      // to top-left of the image.
-      // One special notes:
-      // 1. Cross-platform raw16's stride is 16 pixels.
-      // 2. Opaque raw10's stride is 6 pixels, and aligned to 16 bytes.
-      for (int32_t ys = dim.height - 1; ys >= 0; ys--) {
-          uint32_t y = (uint32_t)ys;
-          uint64_t* row_start = (uint64_t *)frame->buffer +
-                  y * (uint32_t)offset.mp[0].stride_in_bytes / 8;
-          for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
-              uint32_t x = (uint32_t)xs;
-              uint16_t raw16_pixel = 0x3FF & (row_start[x/6] >> (10*(x%6)));
-              raw16_buffer[y*raw16_stride+x] = raw16_pixel;
-          }
-      }
-  } else {
-      ALOGE("%s: Could not find stream", __func__);
-  }
-
+    // In-place format conversion.
+    // Raw16 format always occupy more memory than opaque raw10.
+    // Convert to Raw16 by iterating through all pixels from bottom-right
+    // to top-left of the image.
+    // One special notes:
+    // 1. Cross-platform raw16's stride is 16 pixels.
+    // 2. Opaque raw10's stride is 6 pixels, and aligned to 16 bytes.
+    for (int32_t ys = dim.height - 1; ys >= 0; ys--) {
+        uint32_t y = (uint32_t)ys;
+        uint64_t* row_start = (uint64_t *)frame->buffer +
+            y * (uint32_t)offset.mp[0].stride_in_bytes / 8;
+        for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
+            uint32_t x = (uint32_t)xs;
+            uint16_t raw16_pixel = 0x3FF & (row_start[x/6] >> (10*(x%6)));
+            raw16_buffer[y*raw16_stride+x] = raw16_pixel;
+        }
+    }
 }
 
 void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
@@ -1110,41 +1091,35 @@ void QCamera3RawChannel::convertMipiToRaw16(mm_camera_buf_def_t *frame)
     // 4 pixels occupy 5 bytes, no padding needed
 
     QCamera3Stream *stream = getStreamByIndex(0);
-    if (stream != NULL) {
-        cam_dimension_t dim;
-        memset(&dim, 0, sizeof(dim));
-        stream->getFrameDimension(dim);
+    cam_dimension_t dim;
+    memset(&dim, 0, sizeof(dim));
+    stream->getFrameDimension(dim);
 
-        cam_frame_len_offset_t offset;
-        memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-        stream->getFrameOffset(offset);
+    cam_frame_len_offset_t offset;
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+    stream->getFrameOffset(offset);
 
-        uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
-        uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
+    uint32_t raw16_stride = ((uint32_t)dim.width + 15U) & ~15U;
+    uint16_t* raw16_buffer = (uint16_t *)frame->buffer;
 
-        // In-place format conversion.
-        // Raw16 format always occupy more memory than opaque raw10.
-        // Convert to Raw16 by iterating through all pixels from bottom-right
-        // to top-left of the image.
-        // One special notes:
-        // 1. Cross-platform raw16's stride is 16 pixels.
-        // 2. mipi raw10's stride is 4 pixels, and aligned to 16 bytes.
-        for (int32_t ys = dim.height - 1; ys >= 0; ys--) {
-            uint32_t y = (uint32_t)ys;
-            uint8_t* row_start = (uint8_t *)frame->buffer +
-                    y * (uint32_t)offset.mp[0].stride_in_bytes;
-            for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
-                uint32_t x = (uint32_t)xs;
-                uint8_t upper_8bit = row_start[5*(x/4)+x%4];
-                uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> (x%4)) & 0x3);
-                uint16_t raw16_pixel =
-                        (uint16_t)(((uint16_t)upper_8bit)<<2 | 
-                        (uint16_t)lower_2bit);
-                raw16_buffer[y*raw16_stride+x] = raw16_pixel;
-            }
+    // In-place format conversion.
+    // Raw16 format always occupy more memory than opaque raw10.
+    // Convert to Raw16 by iterating through all pixels from bottom-right
+    // to top-left of the image.
+    // One special notes:
+    // 1. Cross-platform raw16's stride is 16 pixels.
+    // 2. mipi raw10's stride is 4 pixels, and aligned to 16 bytes.
+    for (int32_t ys = dim.height - 1; ys >= 0; ys--) {
+        uint32_t y = (uint32_t)ys;
+        uint8_t* row_start = (uint8_t *)frame->buffer +
+            y * (uint32_t)offset.mp[0].stride_in_bytes;
+        for (int32_t xs = dim.width - 1; xs >= 0; xs--) {
+            uint32_t x = (uint32_t)xs;
+            uint8_t upper_8bit = row_start[5*(x/4)+x%4];
+            uint8_t lower_2bit = ((row_start[5*(x/4)+4] >> (x%4)) & 0x3);
+            uint16_t raw16_pixel = (uint16_t)(((uint16_t)upper_8bit)<<2 | (uint16_t)lower_2bit);
+            raw16_buffer[y*raw16_stride+x] = raw16_pixel;
         }
-    } else {
-        ALOGE("%s: Could not find stream", __func__);
     }
 
 }
@@ -1213,49 +1188,38 @@ QCamera3RawDumpChannel::~QCamera3RawDumpChannel()
 void QCamera3RawDumpChannel::dumpRawSnapshot(mm_camera_buf_def_t *frame)
 {
     QCamera3Stream *stream = getStreamByIndex(0);
-    if (stream != NULL) {
-        char buf[FILENAME_MAX];
-        struct timeval tv;
-        struct tm timeinfo_data;
-        struct tm *timeinfo;
+    char buf[FILENAME_MAX];
+    struct timeval tv;
+    struct tm *timeinfo;
 
-        cam_dimension_t dim;
-        memset(&dim, 0, sizeof(dim));
-        stream->getFrameDimension(dim);
+    cam_dimension_t dim;
+    memset(&dim, 0, sizeof(dim));
+    stream->getFrameDimension(dim);
 
-        cam_frame_len_offset_t offset;
-        memset(&offset, 0, sizeof(cam_frame_len_offset_t));
-        stream->getFrameOffset(offset);
+    cam_frame_len_offset_t offset;
+    memset(&offset, 0, sizeof(cam_frame_len_offset_t));
+    stream->getFrameOffset(offset);
 
-        gettimeofday(&tv, NULL);
-        timeinfo = localtime_r(&tv.tv_sec, &timeinfo_data);
+    gettimeofday(&tv, NULL);
+    timeinfo = localtime(&tv.tv_sec);
 
-        if (NULL != timeinfo) {
-            memset(buf, 0, sizeof(buf));
-            snprintf(buf, sizeof(buf),
-                    QCAMERA_DUMP_FRM_LOCATION
-                    "%04d-%02d-%02d-%02d-%02d-%02d-%06ld_%d_%dx%d.raw",
-                    timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
-                    timeinfo->tm_mday, timeinfo->tm_hour,
-                    timeinfo->tm_min, timeinfo->tm_sec,tv.tv_usec,
-                    frame->frame_idx, dim.width, dim.height);
+    memset(buf, 0, sizeof(buf));
+    snprintf(buf, sizeof(buf),
+            QCAMERA_DUMP_FRM_LOCATION
+            "%04d-%02d-%02d-%02d-%02d-%02d-%06ld_%d_%dx%d.raw",
+            timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,
+            timeinfo->tm_mday, timeinfo->tm_hour,
+            timeinfo->tm_min, timeinfo->tm_sec,tv.tv_usec,
+            frame->frame_idx, dim.width, dim.height);
 
-            int file_fd = open(buf, O_RDWR| O_CREAT, 0777);
-            if (file_fd >= 0) {
-                ssize_t written_len =
-                        write(file_fd, frame->buffer, offset.frame_len);
-                CDBG("%s: written number of bytes %zd", __func__, written_len);
-                close(file_fd);
-            } else {
-                ALOGE("%s: failed to open file to dump image", __func__);
-            }
-        } else {
-            ALOGE("%s: localtime_r() error", __func__);
-        }
+    int file_fd = open(buf, O_RDWR| O_CREAT, 0777);
+    if (file_fd >= 0) {
+        ssize_t written_len = write(file_fd, frame->buffer, offset.frame_len);
+        CDBG("%s: written number of bytes %zd", __func__, written_len);
+        close(file_fd);
     } else {
-        ALOGE("%s: Could not find stream", __func__);
+        ALOGE("%s: failed to open file to dump image", __func__);
     }
-
 }
 
 /*===========================================================================
@@ -1413,8 +1377,7 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
                                               void *userdata)
 {
     ATRACE_CALL();
-    buffer_handle_t *resultBuffer = NULL;
-    buffer_handle_t *jpegBufferHandle = NULL;
+    buffer_handle_t *resultBuffer, *jpegBufferHandle;
     int resultStatus = CAMERA3_BUFFER_STATUS_OK;
     camera3_stream_buffer_t result;
     camera3_jpeg_blob_t jpegHeader;
@@ -1429,67 +1392,51 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             ALOGE("%s: Error in jobId: (%d) with status: %d", __func__, jobId, status);
             resultStatus = CAMERA3_BUFFER_STATUS_ERROR;
         }
+        uint32_t bufIdx = (uint32_t)job->jpeg_settings->out_buf_index;
+        CDBG("%s: jpeg out_buf_index: %d", __func__, bufIdx);
 
+        //Construct jpeg transient header of type camera3_jpeg_blob_t
+        //Append at the end of jpeg image of buf_filled_len size
+
+        jpegHeader.jpeg_blob_id = CAMERA3_JPEG_BLOB_ID;
+        jpegHeader.jpeg_size = (uint32_t)p_output->buf_filled_len;
+
+
+        char* jpeg_buf = (char *)p_output->buf_vaddr;
+        ssize_t maxJpegSize = -1;
+
+        // Gralloc buffer may have additional padding for 4K page size
+        // Follow size guidelines based on spec since framework relies
+        // on that to reach end of buffer and with it the header
+
+        //Handle same as resultBuffer, but for readablity
+        jpegBufferHandle =
+            (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
+
+        maxJpegSize = ((private_handle_t*)(*jpegBufferHandle))->width;
+        if (maxJpegSize > obj->mMemory.getSize(bufIdx)) {
+            maxJpegSize = obj->mMemory.getSize(bufIdx);
+        }
+
+        size_t jpeg_eof_offset = (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader));
+        char *jpeg_eof = &jpeg_buf[jpeg_eof_offset];
+        memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
+        obj->mMemory.cleanInvalidateCache(bufIdx);
+
+        ////Use below data to issue framework callback
+        resultBuffer = (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
+        int32_t resultFrameNumber = obj->mMemory.getFrameNumber(bufIdx);
+
+        result.stream = obj->mCamera3Stream;
+        result.buffer = resultBuffer;
+        result.status = resultStatus;
+        result.acquire_fence = -1;
+        result.release_fence = -1;
+
+        // Release any snapshot buffers before calling
+        // the user callback. The callback can potentially
+        // unblock pending requests to snapshot stream.
         if (NULL != job) {
-            uint32_t bufIdx = (uint32_t)job->jpeg_settings->out_buf_index;
-            CDBG("%s: jpeg out_buf_index: %d", __func__, bufIdx);
-
-            //Construct jpeg transient header of type camera3_jpeg_blob_t
-            //Append at the end of jpeg image of buf_filled_len size
-
-            jpegHeader.jpeg_blob_id = CAMERA3_JPEG_BLOB_ID;
-            if (JPEG_JOB_STATUS_DONE == status) {
-                jpegHeader.jpeg_size = (uint32_t)p_output->buf_filled_len;
-                char* jpeg_buf = (char *)p_output->buf_vaddr;
-
-                ssize_t maxJpegSize = -1;
-
-                // Gralloc buffer may have additional padding for 4K page size
-                // Follow size guidelines based on spec since framework relies
-                // on that to reach end of buffer and with it the header
-
-                //Handle same as resultBuffer, but for readablity
-                jpegBufferHandle =
-                        (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
-
-                if (NULL != jpegBufferHandle) {
-                    maxJpegSize = ((private_handle_t*)(*jpegBufferHandle))->width;
-                    if (maxJpegSize > obj->mMemory.getSize(bufIdx)) {
-                        maxJpegSize = obj->mMemory.getSize(bufIdx);
-                    }
-
-                    size_t jpeg_eof_offset =
-                            (size_t)(maxJpegSize - (ssize_t)sizeof(jpegHeader));
-                    char *jpeg_eof = &jpeg_buf[jpeg_eof_offset];
-                    memcpy(jpeg_eof, &jpegHeader, sizeof(jpegHeader));
-                    obj->mMemory.cleanInvalidateCache(bufIdx);
-                } else {
-                    ALOGE("%s: JPEG buffer not found and index: %d",
-                            __func__,
-                            bufIdx);
-                    resultStatus = CAMERA3_BUFFER_STATUS_ERROR;
-                }
-            }
-
-            ////Use below data to issue framework callback
-            resultBuffer =
-                    (buffer_handle_t *)obj->mMemory.getBufferHandle(bufIdx);
-            int32_t resultFrameNumber = obj->mMemory.getFrameNumber(bufIdx);
-            int32_t rc = obj->mMemory.unregisterBuffer(bufIdx);
-            if (NO_ERROR != rc) {
-                ALOGE("%s: Error %d unregistering stream buffer %d",
-                    __func__, rc, bufIdx);
-            }
-
-            result.stream = obj->mCamera3Stream;
-            result.buffer = resultBuffer;
-            result.status = resultStatus;
-            result.acquire_fence = -1;
-            result.release_fence = -1;
-
-            // Release any snapshot buffers before calling
-            // the user callback. The callback can potentially
-            // unblock pending requests to snapshot stream.
             int32_t snapshotIdx = -1;
             mm_camera_super_buf_t* src_frame = NULL;
 
@@ -1514,14 +1461,13 @@ void QCamera3PicChannel::jpegEvtHandle(jpeg_job_status_t status,
             } else {
                 ALOGE("%s: Snapshot buffer not found!", __func__);
             }
+        }
 
-            CDBG("%s: Issue Callback", __func__);
-            obj->mChannelCB(NULL,
-                    &result,
-                    (uint32_t)resultFrameNumber,
-                    obj->mUserData);
+        CDBG("%s: Issue Callback", __func__);
+        obj->mChannelCB(NULL, &result, (uint32_t)resultFrameNumber, obj->mUserData);
 
-            // release internal data for jpeg job
+        // release internal data for jpeg job
+        if (job != NULL) {
             if ((NULL != job->fwk_frame) || (NULL != job->fwk_src_buffer)) {
                 obj->mOfflineMetaMemory.deallocate();
                 obj->mOfflineMemory.unregisterBuffers();
@@ -1702,6 +1648,19 @@ int32_t QCamera3PicChannel::request(buffer_handle_t *buffer,
     if (rc != 0) {
         ALOGE("%s: Snapshot stream plane info calculation failed!", __func__);
         return rc;
+    }
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_ORIENTATION, metadata)) {
+          int32_t *rotation = (int32_t *)POINTER_OF_PARAM(
+            CAM_INTF_META_JPEG_ORIENTATION, metadata);
+          if (*rotation == 0) {
+             reproc_cfg.rotation = ROTATE_0;
+          } else if (*rotation == 90) {
+             reproc_cfg.rotation = ROTATE_90;
+          } else if (*rotation == 180) {
+             reproc_cfg.rotation = ROTATE_180;
+          } else if (*rotation == 270) {
+             reproc_cfg.rotation = ROTATE_270;
+          }
     }
 
     // Picture stream has already been started before any request comes in
@@ -2064,40 +2023,54 @@ int32_t QCamera3PicChannel::queueJpegSetting(uint32_t index, metadata_buffer_t *
     settings->out_buf_index = index;
 
     settings->jpeg_orientation = 0;
-    IF_META_AVAILABLE(int32_t, orientation, CAM_INTF_META_JPEG_ORIENTATION, metadata) {
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_ORIENTATION, metadata)) {
+        int32_t *orientation = (int32_t *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_ORIENTATION, metadata);
         settings->jpeg_orientation = *orientation;
     }
 
     settings->jpeg_quality = 85;
-    IF_META_AVAILABLE(uint32_t, quality1, CAM_INTF_META_JPEG_QUALITY, metadata) {
-        settings->jpeg_quality = (uint8_t) *quality1;
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_QUALITY, metadata)) {
+        uint8_t *quality = (uint8_t *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_QUALITY, metadata);
+        settings->jpeg_quality = *quality;
     }
 
-    IF_META_AVAILABLE(uint32_t, quality2, CAM_INTF_META_JPEG_THUMB_QUALITY, metadata) {
-        settings->jpeg_thumb_quality = (uint8_t) *quality2;
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_THUMB_QUALITY, metadata)) {
+        uint8_t *quality = (uint8_t *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_THUMB_QUALITY, metadata);
+        settings->jpeg_thumb_quality = *quality;
     }
 
-    IF_META_AVAILABLE(cam_dimension_t, dimension, CAM_INTF_META_JPEG_THUMB_SIZE, metadata) {
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_THUMB_SIZE, metadata)) {
+        cam_dimension_t *dimension = (cam_dimension_t *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_THUMB_SIZE, metadata);
         settings->thumbnail_size = *dimension;
     }
 
     settings->gps_timestamp_valid = 0;
-    IF_META_AVAILABLE(int64_t, timestamp, CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata) {
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata)) {
+        int64_t *timestamp = (int64_t *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_GPS_TIMESTAMP, metadata);
         settings->gps_timestamp = *timestamp;
         settings->gps_timestamp_valid = 1;
     }
 
     settings->gps_coordinates_valid = 0;
-    IF_META_AVAILABLE(double, coordinates, CAM_INTF_META_JPEG_GPS_COORDINATES, metadata) {
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_GPS_COORDINATES, metadata)) {
+        double *coordinates = (double *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_GPS_COORDINATES, metadata);
         memcpy(settings->gps_coordinates, coordinates, 3*sizeof(double));
         settings->gps_coordinates_valid = 1;
     }
 
-    IF_META_AVAILABLE(uint8_t, proc_methods, CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata) {
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata)) {
+        char *proc_methods = (char *)POINTER_OF_PARAM(
+                CAM_INTF_META_JPEG_GPS_PROC_METHODS, metadata);
         memset(settings->gps_processing_method, 0,
                 sizeof(settings->gps_processing_method));
-        strlcpy(settings->gps_processing_method, (const char *)proc_methods,
-                sizeof(settings->gps_processing_method)+1);
+        strncpy(settings->gps_processing_method, proc_methods,
+                sizeof(settings->gps_processing_method));
     }
 
     return m_postprocessor.processJpegSettingData(settings);
@@ -2273,9 +2246,7 @@ int32_t getExifGpsProcessingMethod(char *gpsProcessingMethod,
     if(value != NULL) {
         memcpy(gpsProcessingMethod, ExifAsciiPrefix, EXIF_ASCII_PREFIX_SIZE);
         count = EXIF_ASCII_PREFIX_SIZE;
-        strlcpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE,
-                value,
-                strlen(value)+1);
+        strncpy(gpsProcessingMethod + EXIF_ASCII_PREFIX_SIZE, value, strlen(value));
         count += (uint32_t)strlen(value);
         gpsProcessingMethod[count++] = '\0'; // increase 1 for the last NULL char
         return NO_ERROR;
@@ -2362,16 +2333,16 @@ int32_t getExifLongitude(rat_t *longitude,
  * PARAMETERS :
  *   @altitude : ptr to rational struct to store altitude info
  *   @altRef   : charater to indicate altitude reference
- *   @argValue : altitude value
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t getExifAltitude(rat_t *altitude, char *altRef, double argValue)
+int32_t getExifAltitude(rat_t *altitude,
+                                           char *altRef, double value)
 {
     char str[30];
-    snprintf(str, sizeof(str), "%f", argValue);
+    snprintf(str, sizeof(str), "%f", value);
     if (str != NULL) {
         double value = atof(str);
         *altRef = 0;
@@ -2473,154 +2444,154 @@ QCamera3Exif *QCamera3PicChannel::getExifData(metadata_buffer_t *metadata,
         ALOGE("%s: getExifDateTime failed", __func__);
     }
 
-
-    if (metadata != NULL) {
-        IF_META_AVAILABLE(float, focal_length, CAM_INTF_META_LENS_FOCAL_LENGTH, metadata) {
-            rat_t focalLength;
-            rc = getExifFocalLength(&focalLength, *focal_length);
-            if (rc == NO_ERROR) {
-                exif->addEntry(EXIFTAGID_FOCAL_LENGTH,
-                        EXIF_RATIONAL,
-                        1,
-                        (void *)&(focalLength));
-            } else {
-                ALOGE("%s: getExifFocalLength failed", __func__);
-            }
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_LENS_FOCAL_LENGTH, metadata)) {
+        float focal_length = *(float *)POINTER_OF_PARAM(
+                CAM_INTF_META_LENS_FOCAL_LENGTH, metadata);
+        rat_t focalLength;
+        rc = getExifFocalLength(&focalLength, focal_length);
+        if (rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_FOCAL_LENGTH,
+                    EXIF_RATIONAL,
+                    1,
+                    (void *)&(focalLength));
+        } else {
+            ALOGE("%s: getExifFocalLength failed", __func__);
         }
+    }
 
-        IF_META_AVAILABLE(int32_t, isoSpeed, CAM_INTF_META_SENSOR_SENSITIVITY, metadata) {
-            int16_t fwk_isoSpeed = (int16_t) *isoSpeed;
-            exif->addEntry(EXIFTAGID_ISO_SPEED_RATING, EXIF_SHORT, 1, (void *) &(fwk_isoSpeed));
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_SENSOR_SENSITIVITY, metadata)) {
+        int16_t isoSpeed = (int16_t)
+                *(int32_t *)POINTER_OF_PARAM(CAM_INTF_META_SENSOR_SENSITIVITY, metadata);
+        exif->addEntry(EXIFTAGID_ISO_SPEED_RATING,
+                   EXIF_SHORT,
+                   1,
+                   (void *)&(isoSpeed));
+    }
+
+    if (IS_PARAM_AVAILABLE(CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata)) {
+        int64_t sensor_exposure_time = *(int64_t *)POINTER_OF_PARAM(
+                CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata);
+        rat_t sensorExpTime;
+        rc = getExifExpTimeInfo(&sensorExpTime, sensor_exposure_time);
+        if (rc == NO_ERROR){
+            exif->addEntry(EXIFTAGID_EXPOSURE_TIME,
+                    EXIF_RATIONAL,
+                    1,
+                    (void *)&(sensorExpTime));
+        } else {
+            ALOGE("%s: getExifExpTimeInfo failed", __func__);
         }
+    }
 
-
-        IF_META_AVAILABLE(int64_t, sensor_exposure_time,
-                CAM_INTF_META_SENSOR_EXPOSURE_TIME, metadata) {
-            rat_t sensorExpTime;
-            rc = getExifExpTimeInfo(&sensorExpTime, *sensor_exposure_time);
-            if (rc == NO_ERROR){
-                exif->addEntry(EXIFTAGID_EXPOSURE_TIME,
-                        EXIF_RATIONAL,
-                        1,
-                        (void *)&(sensorExpTime));
-            } else {
-                ALOGE("%s: getExifExpTimeInfo failed", __func__);
-            }
-        }
-
-        char* jpeg_gps_processing_method = jpeg_settings->gps_processing_method;
-        if (strlen(jpeg_gps_processing_method) > 0) {
-            char gpsProcessingMethod[EXIF_ASCII_PREFIX_SIZE +
-                    GPS_PROCESSING_METHOD_SIZE];
-            count = 0;
-            rc = getExifGpsProcessingMethod(gpsProcessingMethod,
+    if (strlen(jpeg_settings->gps_processing_method) > 0) {
+        char gpsProcessingMethod[EXIF_ASCII_PREFIX_SIZE + GPS_PROCESSING_METHOD_SIZE];
+        count = 0;
+        rc = getExifGpsProcessingMethod(gpsProcessingMethod,
+                count, jpeg_settings->gps_processing_method);
+        if(rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_GPS_PROCESSINGMETHOD,
+                    EXIF_ASCII,
                     count,
-                    jpeg_gps_processing_method);
-            if(rc == NO_ERROR) {
-                exif->addEntry(EXIFTAGID_GPS_PROCESSINGMETHOD,
-                        EXIF_ASCII,
-                        count,
-                        (void *)gpsProcessingMethod);
-            } else {
-                ALOGE("%s: getExifGpsProcessingMethod failed", __func__);
-            }
+                    (void *)gpsProcessingMethod);
+        } else {
+            ALOGE("%s: getExifGpsProcessingMethod failed", __func__);
+        }
+    }
+
+    if (jpeg_settings->gps_coordinates_valid) {
+
+        //latitude
+        rat_t latitude[3];
+        char latRef[2];
+        rc = getExifLatitude(latitude, latRef,
+                jpeg_settings->gps_coordinates[0]);
+        if(rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_GPS_LATITUDE,
+                           EXIF_RATIONAL,
+                           3,
+                           (void *)latitude);
+            exif->addEntry(EXIFTAGID_GPS_LATITUDE_REF,
+                           EXIF_ASCII,
+                           2,
+                           (void *)latRef);
+        } else {
+            ALOGE("%s: getExifLatitude failed", __func__);
         }
 
-        if (jpeg_settings->gps_coordinates_valid) {
+        //longitude
+        rat_t longitude[3];
+        char lonRef[2];
+        rc = getExifLongitude(longitude, lonRef,
+                jpeg_settings->gps_coordinates[1]);
+        if(rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_GPS_LONGITUDE,
+                           EXIF_RATIONAL,
+                           3,
+                           (void *)longitude);
 
-            //latitude
-            rat_t latitude[3];
-            char latRef[2];
-            rc = getExifLatitude(latitude, latRef,
-                    jpeg_settings->gps_coordinates[0]);
-            if(rc == NO_ERROR) {
-                exif->addEntry(EXIFTAGID_GPS_LATITUDE,
-                        EXIF_RATIONAL,
-                        3,
-                        (void *)latitude);
-                exif->addEntry(EXIFTAGID_GPS_LATITUDE_REF,
-                        EXIF_ASCII,
-                        2,
-                        (void *)latRef);
-            } else {
-                ALOGE("%s: getExifLatitude failed", __func__);
-            }
-
-            //longitude
-            rat_t longitude[3];
-            char lonRef[2];
-            rc = getExifLongitude(longitude, lonRef,
-                    jpeg_settings->gps_coordinates[1]);
-            if(rc == NO_ERROR) {
-                exif->addEntry(EXIFTAGID_GPS_LONGITUDE,
-                        EXIF_RATIONAL,
-                        3,
-                        (void *)longitude);
-
-                exif->addEntry(EXIFTAGID_GPS_LONGITUDE_REF,
-                        EXIF_ASCII,
-                        2,
-                        (void *)lonRef);
-            } else {
-                ALOGE("%s: getExifLongitude failed", __func__);
-            }
-
-            //altitude
-            rat_t altitude;
-            char altRef;
-            rc = getExifAltitude(&altitude, &altRef,
-                    jpeg_settings->gps_coordinates[2]);
-            if(rc == NO_ERROR) {
-                exif->addEntry(EXIFTAGID_GPS_ALTITUDE,
-                        EXIF_RATIONAL,
-                        1,
-                        (void *)&(altitude));
-
-                exif->addEntry(EXIFTAGID_GPS_ALTITUDE_REF,
-                        EXIF_BYTE,
-                        1,
-                        (void *)&altRef);
-            } else {
-                ALOGE("%s: getExifAltitude failed", __func__);
-            }
+            exif->addEntry(EXIFTAGID_GPS_LONGITUDE_REF,
+                           EXIF_ASCII,
+                           2,
+                           (void *)lonRef);
+        } else {
+            ALOGE("%s: getExifLongitude failed", __func__);
         }
 
-        if (jpeg_settings->gps_timestamp_valid) {
+        //altitude
+        rat_t altitude;
+        char altRef;
+        rc = getExifAltitude(&altitude, &altRef,
+                jpeg_settings->gps_coordinates[2]);
+        if(rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_GPS_ALTITUDE,
+                           EXIF_RATIONAL,
+                           1,
+                           (void *)&(altitude));
 
-            char gpsDateStamp[20];
-            rat_t gpsTimeStamp[3];
-            rc = getExifGpsDateTimeStamp(gpsDateStamp, 20, gpsTimeStamp,
-                    jpeg_settings->gps_timestamp);
-            if(rc == NO_ERROR) {
-                exif->addEntry(EXIFTAGID_GPS_DATESTAMP, EXIF_ASCII,
-                        (uint32_t)(strlen(gpsDateStamp) + 1),
-                        (void *)gpsDateStamp);
-
-                exif->addEntry(EXIFTAGID_GPS_TIMESTAMP,
-                        EXIF_RATIONAL,
-                        3,
-                        (void *)gpsTimeStamp);
-            } else {
-                ALOGE("%s: getExifGpsDataTimeStamp failed", __func__);
-            }
+            exif->addEntry(EXIFTAGID_GPS_ALTITUDE_REF,
+                           EXIF_BYTE,
+                           1,
+                           (void *)&altRef);
+        } else {
+            ALOGE("%s: getExifAltitude failed", __func__);
         }
+    }
 
-        IF_META_AVAILABLE(int32_t, exposure_comp, CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata) {
-            IF_META_AVAILABLE(cam_rational_type_t, comp_step, CAM_INTF_PARM_EV_STEP, metadata) {
-                srat_t exposure_val;
-                rc = getExifExposureValue(&exposure_val, *exposure_comp, *comp_step);
-                if(rc == NO_ERROR) {
-                    exif->addEntry(EXIFTAGID_EXPOSURE_BIAS_VALUE,
-                            EXIF_SRATIONAL,
-                            1,
-                            (void *)(&exposure_val));
-                } else {
-                    ALOGE("%s: getExifExposureValue failed ", __func__);
-                }
-            }
+    if (jpeg_settings->gps_timestamp_valid) {
+
+        char gpsDateStamp[20];
+        rat_t gpsTimeStamp[3];
+        rc = getExifGpsDateTimeStamp(gpsDateStamp, 20, gpsTimeStamp,
+                jpeg_settings->gps_timestamp);
+        if(rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_GPS_DATESTAMP, EXIF_ASCII,
+                    (uint32_t)(strlen(gpsDateStamp) + 1), (void *)gpsDateStamp);
+
+            exif->addEntry(EXIFTAGID_GPS_TIMESTAMP,
+                           EXIF_RATIONAL,
+                           3,
+                           (void *)gpsTimeStamp);
+        } else {
+            ALOGE("%s: getExifGpsDataTimeStamp failed", __func__);
         }
-    } else {
-        ALOGE("%s: no metadata provided ", __func__);
+    }
+
+    if (IS_PARAM_AVAILABLE(CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata) &&
+            IS_PARAM_AVAILABLE(CAM_INTF_PARM_EV_STEP, metadata)) {
+        int32_t exposure_comp = *(int32_t *)POINTER_OF_PARAM(
+                CAM_INTF_PARM_EXPOSURE_COMPENSATION, metadata);
+        cam_rational_type_t comp_step = *(cam_rational_type_t *)POINTER_OF_PARAM(
+                CAM_INTF_PARM_EV_STEP, metadata);
+        srat_t exposure_val;
+        rc = getExifExposureValue(&exposure_val, exposure_comp, comp_step);
+        if(rc == NO_ERROR) {
+            exif->addEntry(EXIFTAGID_EXPOSURE_BIAS_VALUE,
+                       EXIF_SRATIONAL,
+                       1,
+                       (void *)(&exposure_val));
+        } else {
+            ALOGE("%s: getExifExposureValue failed ", __func__);
+        }
     }
 
     char value[PROPERTY_VALUE_MAX];
@@ -2681,7 +2652,7 @@ QCamera3ReprocessChannel::QCamera3ReprocessChannel(uint32_t cam_handle,
     mMemory(NULL)
 {
     memset(mSrcStreamHandles, 0, sizeof(mSrcStreamHandles));
-    mOfflineMetaIndex = (int32_t) (mNumBuffers -1);
+    mOfflineMetaIndex = mNumBuffers -1;
 }
 
 
@@ -3004,10 +2975,7 @@ int32_t QCamera3ReprocessChannel::extractFrameCropAndRotation(mm_camera_super_bu
         mm_camera_buf_def_t *meta_buffer, jpeg_settings_t *jpeg_settings,
         qcamera_fwk_input_pp_data_t &fwk_frame)
 {
-    int32_t rc = NO_ERROR;
-    QCamera3HardwareInterface* hal_obj = (QCamera3HardwareInterface*)mUserData;
-    if ((NULL == meta_buffer) || (NULL == frame) || (NULL == jpeg_settings) ||
-            (NULL == hal_obj)) {
+    if ((NULL == meta_buffer) || (NULL == frame) || (NULL == jpeg_settings)) {
         return BAD_VALUE;
     }
 
@@ -3022,85 +2990,58 @@ int32_t QCamera3ReprocessChannel::extractFrameCropAndRotation(mm_camera_super_bu
 
         if (pStream != NULL && pSrcStream != NULL) {
             // Find rotation info for reprocess stream
-            cam_rotation_info_t rotation_info;
-            memset(&rotation_info, 0, sizeof(rotation_info));
             if (jpeg_settings->jpeg_orientation == 0) {
-               rotation_info.rotation = ROTATE_0;
+               fwk_frame.reproc_config.rotation = ROTATE_0;
             } else if (jpeg_settings->jpeg_orientation == 90) {
-               rotation_info.rotation = ROTATE_90;
+               fwk_frame.reproc_config.rotation = ROTATE_90;
             } else if (jpeg_settings->jpeg_orientation == 180) {
-               rotation_info.rotation = ROTATE_180;
+               fwk_frame.reproc_config.rotation = ROTATE_180;
             } else if (jpeg_settings->jpeg_orientation == 270) {
-               rotation_info.rotation = ROTATE_270;
+               fwk_frame.reproc_config.rotation = ROTATE_270;
             }
-            rotation_info.streamId = mStreams[0]->getMyServerID();
-            ADD_SET_PARAM_ENTRY_TO_BATCH(meta, CAM_INTF_PARM_ROTATION, rotation_info);
 
-            // Find and insert crop info for reprocess stream
-            IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
-                if (MAX_NUM_STREAMS > crop_data->num_of_streams) {
-                    for (int j = 0; j < crop_data->num_of_streams; j++) {
-                        if (crop_data->crop_info[j].stream_id ==
-                                pSrcStream->getMyServerID()) {
-
-                            // Store crop/roi information for offline reprocess
-                            // in the reprocess stream slot
-                            crop_data->crop_info[crop_data->num_of_streams].crop =
-                                    crop_data->crop_info[j].crop;
-                            crop_data->crop_info[crop_data->num_of_streams].roi_map =
-                                    crop_data->crop_info[j].roi_map;
-                            crop_data->crop_info[crop_data->num_of_streams].stream_id =
-                                    mStreams[0]->getMyServerID();
-                            crop_data->num_of_streams++;
-
-                            CDBG("%s: Reprocess stream server id: %d",
-                                    __func__, mStreams[0]->getMyServerID());
-                            CDBG("%s: Found offline reprocess crop %dx%d %dx%d",
-                                    __func__,
-                                    crop_data->crop_info[j].crop.left,
-                                    crop_data->crop_info[j].crop.top,
-                                    crop_data->crop_info[j].crop.width,
-                                    crop_data->crop_info[j].crop.height);
-                            CDBG("%s: Found offline reprocess roimap %dx%d %dx%d",
-                                    __func__,
-                                    crop_data->crop_info[j].roi_map.left,
-                                    crop_data->crop_info[j].roi_map.top,
-                                    crop_data->crop_info[j].roi_map.width,
-                                    crop_data->crop_info[j].roi_map.height);
-
-                            break;
-                        }
-                    }
-                } else {
-                    ALOGE("%s: No space to add reprocess stream crop/roi information",
-                            __func__);
+            // Find crop info for reprocess stream
+            cam_crop_data_t *crop_data = (cam_crop_data_t *)
+                POINTER_OF_PARAM(CAM_INTF_META_CROP_DATA, meta);
+            if (NULL != crop_data) {
+                for (int j = 0; j < crop_data->num_of_streams; j++) {
+                    if (crop_data->crop_info[j].stream_id ==
+                        pSrcStream->getMyServerID()) {
+                        fwk_frame.reproc_config.output_crop =
+                            crop_data->crop_info[0].crop;
+                        CDBG("%s: Found offline reprocess crop %dx%d %dx%d",
+                              __func__,
+                              crop_data->crop_info[0].crop.left,
+                              crop_data->crop_info[0].crop.top,
+                              crop_data->crop_info[0].crop.width,
+                              crop_data->crop_info[0].crop.height);
+                     }
                 }
             }
-
             fwk_frame.input_buffer = *frame->bufs[i];
             fwk_frame.metadata_buffer = *meta_buffer;
             break;
         } else {
             ALOGE("%s: Source/Re-process streams are invalid", __func__);
-            rc |= BAD_VALUE;
+            return BAD_VALUE;
         }
     }
 
-    return rc;
+    return NO_ERROR;
 }
 
 /*===========================================================================
-* FUNCTION : extractCrop
-*
-* DESCRIPTION: Extract framework output crop if present
-*
-* PARAMETERS :
-* @frame : input frame for reprocessing
-*
-* RETURN : int32_t type of status
-* NO_ERROR -- success
-* none-zero failure code
-*==========================================================================*/
+ * FUNCTION   : extractCrop
+ *
+ * DESCRIPTION: Extract framework output crop if present
+ *
+ * PARAMETERS :
+ *   @frame     : input frame for reprocessing
+ *
+ * RETURN     : int32_t type of status
+ *              NO_ERROR  -- success
+ *              none-zero failure code
+ *==========================================================================*/
 int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame)
 {
     if (NULL == frame) {
@@ -3108,38 +3049,23 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         return BAD_VALUE;
     }
 
-
     if (NULL == frame->metadata_buffer.buffer) {
         ALOGE("%s: No metadata available", __func__);
         return BAD_VALUE;
     }
 
-    // Find and insert crop info for reprocess stream
+    // Find crop info for reprocess stream
     metadata_buffer_t *meta = (metadata_buffer_t *) frame->metadata_buffer.buffer;
-    IF_META_AVAILABLE(cam_crop_data_t, crop_data, CAM_INTF_META_CROP_DATA, meta) {
+    if (IS_META_AVAILABLE(CAM_INTF_META_CROP_DATA, meta)) {
+        cam_crop_data_t *crop_data = (cam_crop_data_t *)
+                POINTER_OF_PARAM(CAM_INTF_META_CROP_DATA, meta);
         if (1 == crop_data->num_of_streams) {
-            // Store crop/roi information for offline reprocess
-            // in the reprocess stream slot
-            crop_data->crop_info[crop_data->num_of_streams].crop =
-                    crop_data->crop_info[0].crop;
-            crop_data->crop_info[crop_data->num_of_streams].roi_map =
-                    crop_data->crop_info[0].roi_map;
-            crop_data->crop_info[crop_data->num_of_streams].stream_id =
-                    mStreams[0]->getMyServerID();
-            crop_data->num_of_streams++;
-
-            CDBG("%s: Reprocess stream server id: %d",
-                    __func__, mStreams[0]->getMyServerID());
+            frame->reproc_config.output_crop = crop_data->crop_info[0].crop;
             CDBG("%s: Found offline reprocess crop %dx%d %dx%d", __func__,
                     crop_data->crop_info[0].crop.left,
                     crop_data->crop_info[0].crop.top,
                     crop_data->crop_info[0].crop.width,
                     crop_data->crop_info[0].crop.height);
-            CDBG("%s: Found offline reprocess roi map %dx%d %dx%d", __func__,
-                    crop_data->crop_info[0].roi_map.left,
-                    crop_data->crop_info[0].roi_map.top,
-                    crop_data->crop_info[0].roi_map.width,
-                    crop_data->crop_info[0].roi_map.height);
         } else {
             ALOGE("%s: Incorrect number of offline crop data entries %d",
                     __func__,
@@ -3196,7 +3122,7 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
     }
 
     QCamera3Stream *pStream = mStreams[0];
-    int32_t max_idx = (int32_t) (mNumBuffers - 1);
+    int32_t max_idx = mNumBuffers - 1;
     //loop back the indices if max burst count reached
     if (mOfflineBuffersIndex == max_idx) {
        mOfflineBuffersIndex = -1;
@@ -3215,10 +3141,10 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         CDBG("%s: Mapped buffer with index %d", __func__, mOfflineBuffersIndex);
     }
 
-    max_idx = (int32_t) ((mNumBuffers * 2) - 1);
+    max_idx = mNumBuffers*2 - 1;
     //loop back the indices if max burst count reached
     if (mOfflineMetaIndex == max_idx) {
-       mOfflineMetaIndex = (int32_t) (mNumBuffers - 1);
+       mOfflineMetaIndex = mNumBuffers - 1;
     }
     uint32_t meta_buf_idx = (uint32_t)(mOfflineMetaIndex + 1);
     rc |= pStream->mapBuf(
@@ -3242,6 +3168,9 @@ int32_t QCamera3ReprocessChannel::extractCrop(qcamera_fwk_input_pp_data_t *frame
         param.reprocess.frame_idx = frame->input_buffer.frame_idx;
         param.reprocess.meta_present = 1;
         param.reprocess.meta_buf_index = meta_buf_idx;
+        param.reprocess.frame_pp_config.rotation = frame->reproc_config.rotation;
+        param.reprocess.frame_pp_config.crop.input_crop = frame->reproc_config.output_crop;
+        param.reprocess.frame_pp_config.crop.crop_enabled = 1;
         rc = pStream->setParameter(param);
         if (rc != NO_ERROR) {
             ALOGE("%s: stream setParameter for reprocess failed", __func__);

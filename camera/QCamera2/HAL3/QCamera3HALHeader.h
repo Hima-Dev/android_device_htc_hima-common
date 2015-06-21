@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundataion. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -38,9 +38,6 @@ using namespace android;
 
 namespace qcamera {
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-
 class QCamera3Channel;
 
     typedef enum {
@@ -74,6 +71,8 @@ class QCamera3Channel;
         cam_dimension_t output_stream_dim;
         cam_padding_info_t *padding;
         QCamera3Channel *src_channel;
+        cam_rect_t output_crop;
+        cam_rotation_t rotation;
     } reprocess_config_t;
 };//namespace qcamera
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -418,35 +418,6 @@ int32_t mm_camera_close(mm_camera_obj_t *my_obj)
     pthread_mutex_destroy(&my_obj->evt_lock);
     pthread_cond_destroy(&my_obj->evt_cond);
 
-    pthread_mutex_unlock(&my_obj->cam_lock);
-    return 0;
-}
-
-/*===========================================================================
- * FUNCTION   : mm_camera_close_fd
- *
- * DESCRIPTION: close the ctrl_fd and socket fd in case of an error so that
- *              the backend will close
- *              Do NOT close or release any HAL resources since a close_camera
- *              has not been called yet.
- * PARAMETERS :
- *   @my_obj   : ptr to a camera object
- *   @event    : event to be queued
- *
- * RETURN     : int32_t type of status
- *              0  -- success
- *              -1 -- failure
- *==========================================================================*/
-int32_t mm_camera_close_fd(mm_camera_obj_t *my_obj)
-{
-    if(my_obj->ctrl_fd >= 0) {
-        close(my_obj->ctrl_fd);
-        my_obj->ctrl_fd = -1;
-    }
-    if(my_obj->ds_fd >= 0) {
-        mm_camera_socket_close(my_obj->ds_fd);
-        my_obj->ds_fd = -1;
-    }
     pthread_mutex_unlock(&my_obj->cam_lock);
     return 0;
 }
@@ -1896,20 +1867,20 @@ int32_t mm_camera_util_g_ctrl( int32_t fd, uint32_t id, int32_t *value)
  *
  * PARAMETERS :
  *   @my_obj       : camera object
+ *   @advanced_capture_type : advanced capture type.
  *   @ch_id        : channel handle
-  *   @type : advanced capture type.
  *   @start_flag  : flag to indicate start/stop
-  *   @in_value  : input configaration
  *
  * RETURN     : int32_t type of status
  *              0  -- success
  *              -1 -- failure
  *==========================================================================*/
 int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
-            uint32_t ch_id, mm_camera_advanced_capture_t type,
-            uint32_t trigger, void *in_value)
+                                        mm_camera_advanced_capture_t advanced_capture_type,
+                                        uint32_t ch_id,
+                                        uint32_t start_flag)
 {
-    CDBG("%s: E type = %d",__func__, type);
+    CDBG("%s: E",__func__);
     int32_t rc = -1;
     mm_channel_t * ch_obj =
         mm_camera_util_get_channel_by_handler(my_obj, ch_id);
@@ -1917,35 +1888,29 @@ int32_t mm_camera_channel_advanced_capture(mm_camera_obj_t *my_obj,
     if (NULL != ch_obj) {
         pthread_mutex_lock(&ch_obj->ch_lock);
         pthread_mutex_unlock(&my_obj->cam_lock);
-        switch (type) {
+        switch (advanced_capture_type) {
             case MM_CAMERA_AF_BRACKETING:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_AF_BRACKETING,
-                                       (void *)&trigger,
+                                       (void *)&start_flag,
                                        NULL);
                 break;
             case MM_CAMERA_AE_BRACKETING:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_AE_BRACKETING,
-                                       (void *)&trigger,
+                                       (void *)&start_flag,
                                        NULL);
                 break;
             case MM_CAMERA_FLASH_BRACKETING:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_FLASH_BRACKETING,
-                                       (void *)&trigger,
+                                       (void *)&start_flag,
                                        NULL);
                 break;
             case MM_CAMERA_ZOOM_1X:
                 rc = mm_channel_fsm_fn(ch_obj,
                                        MM_CHANNEL_EVT_ZOOM_1X,
-                                       (void *)&trigger,
-                                       NULL);
-                break;
-            case MM_CAMERA_FRAME_CAPTURE:
-                rc = mm_channel_fsm_fn(ch_obj,
-                                       MM_CAMERA_EVT_CAPTURE_SETTING,
-                                       (void *)in_value,
+                                       (void *)&start_flag,
                                        NULL);
                 break;
             default:

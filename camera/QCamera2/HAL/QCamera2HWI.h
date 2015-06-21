@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -195,23 +195,10 @@ private:
     bool             mActive;
 };
 
-class QCameraPerfLock {
-public:
-    void    lock_init();
-    void    lock_deinit();
-    int32_t lock_rel();
-    int32_t lock_acq();
-private:
-    int32_t        (*perf_lock_acq)(int, int, int[], int);
-    int32_t        (*perf_lock_rel)(int);
-    void           *dlhandle;
-    uint32_t        mPerfLockEnable;
-    pthread_mutex_t dl_mutex;
-    int32_t         mPerfLockHandle;  // Performance lock library handle
-};
-
 class QCamera2HardwareInterface : public QCameraAllocator,
-        public QCameraThermalCallback, public QCameraAdjustFPS
+                                  public QCameraThermalCallback,
+                                  public QCameraAdjustFPS,
+                                  public QCameraTorchInterface
 {
 public:
     /* static variable and functions accessed by camera service */
@@ -272,7 +259,6 @@ public:
 
     virtual QCameraHeapMemory *allocateStreamInfoBuf(cam_stream_type_t stream_type);
     virtual QCameraHeapMemory *allocateMiscBuf(cam_stream_info_t *streamInfo);
-    virtual QCameraMemory *allocateStreamUserBuf(cam_stream_info_t *streamInfo);
 
     // Implementation of QCameraThermalCallback
     virtual int thermalEvtHandle(qcamera_thermal_level_enum_t *level,
@@ -280,6 +266,10 @@ public:
 
     virtual int recalcFPSRange(int &minFPS, int &maxFPS,
             cam_fps_range_t &adjustedRange);
+
+    // Implementation of QCameraTorchInterface
+    virtual int prepareTorchCamera();
+    virtual int releaseTorchCamera();
 
     friend class QCameraStateMachine;
     friend class QCameraPostProcessor;
@@ -364,6 +354,8 @@ private:
     void playShutter();
     void getThumbnailSize(cam_dimension_t &dim);
     uint32_t getJpegQuality();
+    uint32_t getJpegRotation();
+    void getOrientation();
     inline bool getCancelAutoFocus(){ return mCancelAutoFocus; }
     inline void setCancelAutoFocus(bool flag){ mCancelAutoFocus = flag; }
     QCameraExif *getExifData();
@@ -375,12 +367,7 @@ private:
     int32_t processASDUpdate(cam_auto_scene_t scene);
     int32_t processJpegNotify(qcamera_jpeg_evt_payload_t *jpeg_job);
     int32_t processHDRData(cam_asd_hdr_scene_data_t hdr_scene);
-    int32_t processRetroAECUnlock();
-    int32_t processZSLCaptureDone();
     int32_t processSceneData(cam_scene_mode_type scene);
-    int32_t transAwbMetaToParams(cam_awb_params_t &awb_params);
-    int32_t processFocusPositionInfo(cam_focus_pos_info_t &cur_pos_info);
-    int32_t processAEInfo(cam_3a_params_t &ae_params);
 
     int32_t sendEvtNotify(int32_t msg_type, int32_t ext1, int32_t ext2);
     int32_t sendDataNotify(int32_t msg_type,
@@ -442,23 +429,29 @@ private:
     bool needFDMetadata(qcamera_ch_type_enum_t channel_type);
     int32_t configureOnlineRotation(QCameraChannel &ch);
     int32_t declareSnapshotStreams();
+
+    bool removeSizeFromList(cam_dimension_t* size_list,
+                            uint8_t length,
+                            cam_dimension_t size);
     int32_t unconfigureAdvancedCapture();
     int32_t configureAdvancedCapture();
     int32_t configureAFBracketing(bool enable = true);
+    int32_t configureFlashBracketing(bool enable = true);
     int32_t configureHDRBracketing();
     int32_t stopAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t startAdvancedCapture(QCameraPicChannel *pChannel);
     int32_t configureOptiZoom();
-    int32_t configureStillMore();
     int32_t configureAEBracketing();
     int32_t updatePostPreviewParameters();
     inline void setOutputImageCount(uint32_t aCount) {mOutputCount = aCount;}
     inline uint32_t getOutputImageCount() {return mOutputCount;}
     bool processUFDumps(qcamera_jpeg_evt_payload_t *evt);
     void captureDone();
-    int32_t updateMetadata(metadata_buffer_t *pMetaData);
 
     int32_t getPPConfig(cam_pp_feature_config_t &pp_config, int curCount);
+
+    static void copyList(cam_dimension_t* src_list,
+                   cam_dimension_t* dst_list, uint8_t len);
     static void camEvtHandle(uint32_t camera_handle,
                           mm_camera_event_t *evt,
                           void *user_data);
@@ -539,7 +532,6 @@ private:
     QCameraPostProcessor m_postprocessor; // post processor
     QCameraThermalAdapter &m_thermalAdapter;
     QCameraCbNotifier m_cbNotifier;
-    QCameraPerfLock m_perfLock;
     pthread_mutex_t m_lock;
     pthread_cond_t m_cond;
     api_result_list *m_apiResultList;
@@ -553,9 +545,15 @@ private:
 
     QCameraChannel *m_channels[QCAMERA_CH_TYPE_MAX]; // array holding channel ptr
 
+    bool m_bShutterSoundPlayed;         // if shutter sound had been played
     bool m_bPreviewStarted;             //flag indicates first preview frame callback is received
     bool m_bRecordStarted;             //flag indicates Recording is started for first time
 
+
+    // if auto focus is running, in other words, when auto_focus is called from service,
+    // and beforeany focus callback/cancel_focus happens. This flag is not an indication
+    // of whether lens is moving or not.
+    bool m_bAutoFocusRunning;
     // Signifies if ZSL Retro Snapshots are enabled
     bool bRetroPicture;
     // Signifies AEC locked during zsl snapshots
@@ -577,10 +575,12 @@ private:
     pthread_t mLiveSnapshotThread;
     pthread_t mIntPicThread;
     bool mFlashNeeded;
-    uint32_t mDeviceRotation;
     uint32_t mCaptureRotation;
     uint32_t mJpegExifRotation;
     bool mUseJpegExifRotation;
+    int32_t mFlash;
+    int32_t mRedEye;
+    int32_t mFlashPresence;
     bool mIs3ALocked;
     bool mPrepSnapRun;
     int32_t mZoomLevel;
@@ -622,12 +622,12 @@ private:
 
     struct DeffWork
     {
-        DeffWork(DefferedWorkCmd cmd_,
-                 uint32_t id_,
-                 DefferWorkArgs args_)
-            : cmd(cmd_),
-              id(id_),
-              args(args_){};
+        DeffWork(DefferedWorkCmd cmd,
+                 uint32_t id,
+                 DefferWorkArgs args)
+            : cmd(cmd),
+              id(id),
+              args(args){};
 
         DefferedWorkCmd cmd;
         uint32_t id;
@@ -653,7 +653,6 @@ private:
     uint32_t mOutputCount;
     uint32_t mInputCount;
     bool mAdvancedCaptureConfigured;
-    bool mHDRBracketingEnabled;
 };
 
 }; // namespace qcamera
