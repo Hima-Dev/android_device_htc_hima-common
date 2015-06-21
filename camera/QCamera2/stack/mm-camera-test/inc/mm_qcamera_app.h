@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -162,7 +162,7 @@ typedef struct {
     int                     main_ion_fd;
     ion_user_handle_t       handle;
     size_t                  size;
-    parm_buffer_t          *data;
+    void *                  data;
 } mm_camera_app_meminfo_t;
 
 typedef struct {

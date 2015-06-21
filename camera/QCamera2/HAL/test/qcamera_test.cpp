@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -100,21 +100,17 @@ void CameraContext::previewCallback(const sp<IMemory>& mem)
 {
     printf("PREVIEW Callback %p", mem->pointer());
     uint8_t *ptr = (uint8_t*) mem->pointer();
-    if (NULL != ptr) {
-        printf("PRV_CB: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
-                ptr[0],
-                ptr[1],
-                ptr[2],
-                ptr[3],
-                ptr[4],
-                ptr[5],
-                ptr[6],
-                ptr[7],
-                ptr[8],
-                ptr[9]);
-    } else {
-        ALOGE("%s: no preview for NULL CB\n", __func__);
-    }
+    printf("PRV_CB: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
+           ptr[0],
+           ptr[1],
+           ptr[2],
+           ptr[3],
+           ptr[4],
+           ptr[5],
+           ptr[6],
+           ptr[7],
+           ptr[8],
+           ptr[9]);
 }
 
 /*===========================================================================
@@ -570,13 +566,6 @@ status_t CameraContext::ReadSectionsFromBuffer (unsigned char *buffer,
 
         CheckSectionsAllocated();
 
-        // The call to CheckSectionsAllocated() may reallocate mSections
-        // so need to check for NULL again.
-        if (mSections == NULL) {
-            printf("%s: not enough memory\n", __func__);
-            return BAD_VALUE;
-        }
-
         for (a = 0; a <= 16; a++){
             marker = buffer[pos++];
             if (marker != 0xff) break;
@@ -647,15 +636,6 @@ status_t CameraContext::ReadSectionsFromBuffer (unsigned char *buffer,
                     memcpy(Data, buffer+pos, size);
 
                     CheckSectionsAllocated();
-
-                    // The call to CheckSectionsAllocated()
-                    // may reallocate mSections
-                    // so need to check for NULL again.
-                    if (mSections == NULL) {
-                        printf("%s: not enough memory\n", __func__);
-                        return BAD_VALUE;
-                    }
-
                     mSections[mSectionsRead].Data = Data;
                     mSections[mSectionsRead].Size = size;
                     mSections[mSectionsRead].Type = PSEUDO_IMAGE_MARKER;
@@ -1065,11 +1045,6 @@ void CameraContext::dataCallbackTimestamp(nsecs_t timestamp,
     ANativeWindowBuffer* anb = NULL;
 
     dstBuff = (void *) dataPtr->pointer();
-    if (NULL == dstBuff) {
-        printf("Cannot access destination buffer!!!\n");
-        mInterpr->ViVUnlock();
-        return;
-    }
 
     if (mCameraIndex == mInterpr->mViVVid.sourceCameraID) {
         srcYStride = calcStride(currentVideoSize.width);
@@ -1085,7 +1060,7 @@ void CameraContext::dataCallbackTimestamp(nsecs_t timestamp,
         mInterpr->mViVBuff.YScanLines = srcYScanLines;
         mInterpr->mViVBuff.UVScanLines = srcUVScanLines;
 
-        memcpy( mInterpr->mViVBuff.buff, dstBuff,
+        memcpy( mInterpr->mViVBuff.buff, (void *) dataPtr->pointer(),
             mInterpr->mViVBuff.buffSize);
 
         mInterpr->mViVVid.isBuffValid = true;
@@ -1972,9 +1947,9 @@ Size CameraContext::getPreviewSizeFromVideoSizes(Size currentVideoSize)
     Size tmpPreviewSize;
     Size PreviewSize;
     Size PreviewSizes[mSupportedPreviewSizes.size()];
-    double tolerance = 0.00001;
-    double videoRatio;
-    double previewRatio;
+    float tolerance = 0.00001;
+    float videoRatio;
+    float previewRatio;
     size_t i = 0;
     size_t j = 0;
     int delta;
@@ -3543,12 +3518,8 @@ status_t TestContext::FunctionalTest()
 
         case Interpreter::DELAY:
         {
-            if ( command.arg ) {
-                int delay = atoi(command.arg);
-                if (0 < delay) {
-                    usleep(1000U * (unsigned int)delay);
-                }
-            }
+            if ( command.arg )
+                usleep(1000LU * (long unsigned int)atoi(command.arg));
         }
             break;
 

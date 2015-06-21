@@ -120,8 +120,6 @@ QCameraStateMachine::QCameraStateMachine(QCamera2HardwareInterface *ctrl) :
                    smEvtProcRoutine,
                    this);
     pthread_setname_np(cmd_pid, "CAM_stMachine");
-    m_bDelayPreviewMsgs = false;
-    m_DelayedMsgs = 0;
 }
 
 /*===========================================================================
@@ -170,31 +168,6 @@ void QCameraStateMachine::releaseThread()
         }
         cmd_pid = 0;
     }
-}
-
-/*===========================================================================
- * FUNCTION   : applyDelayedMsgs
- *
- * DESCRIPTION: Enable if needed any delayed message types
- *
- * PARAMETERS : None
- * RETURN     : int32_t type of status
- *              NO_ERROR  -- success
- *              none-zero failure code
- *==========================================================================*/
-int32_t QCameraStateMachine::applyDelayedMsgs()
-{
-    int32_t rc = NO_ERROR;
-
-    if (m_bDelayPreviewMsgs && m_DelayedMsgs) {
-        rc = m_parent->enableMsgType(m_DelayedMsgs);
-        m_bDelayPreviewMsgs = false;
-        m_DelayedMsgs = 0;
-    } else if (m_bDelayPreviewMsgs) {
-        m_bDelayPreviewMsgs = false;
-    }
-
-    return rc;
 }
 
 /*===========================================================================
@@ -596,14 +569,6 @@ int32_t QCameraStateMachine::procEvtPreviewStoppedState(qcamera_sm_evt_enum_t ev
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -909,14 +874,6 @@ int32_t QCameraStateMachine::procEvtPreviewReadyState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1014,13 +971,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_ENABLE_MSG_TYPE:
         {
-            int32_t enable_msgs = *((int32_t *)payload);
-            if (m_bDelayPreviewMsgs &&
-                    (enable_msgs & CAMERA_MSG_PREVIEW_FRAME)) {
-                enable_msgs &= ~CAMERA_MSG_PREVIEW_FRAME;
-                m_DelayedMsgs = CAMERA_MSG_PREVIEW_FRAME;
-            }
-            rc = m_parent->enableMsgType(enable_msgs);
+            rc = m_parent->enableMsgType(*((int32_t *)payload));
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -1029,14 +980,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_DISABLE_MSG_TYPE:
         {
-            int32_t disable_msgs = *((int32_t *)payload);
-            if (m_bDelayPreviewMsgs && m_DelayedMsgs) {
-                m_DelayedMsgs &= ~disable_msgs;
-                if (0 == m_DelayedMsgs) {
-                    m_bDelayPreviewMsgs = false;
-                }
-            }
-            rc = m_parent->disableMsgType(disable_msgs);
+            rc = m_parent->disableMsgType(*((int32_t *)payload));
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
@@ -1045,11 +989,7 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_MSG_TYPE_ENABLED:
         {
-            int32_t msgs = *((int32_t *)payload);
-            int enabled = m_parent->msgTypeEnabled(msgs);
-            if (m_bDelayPreviewMsgs && m_DelayedMsgs) {
-                enabled |= (msgs & m_DelayedMsgs);
-            }
+            int enabled = m_parent->msgTypeEnabled(*((int32_t *)payload));
             result.status = rc;
             result.request_api = evt;
             result.result_type = QCAMERA_API_RESULT_TYPE_ENABLE_FLAG;
@@ -1115,7 +1055,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         {
             // no ops here
             CDBG_HIGH("%s: Already in previewing, no ops here to start preview", __func__);
-            applyDelayedMsgs();
             rc = NO_ERROR;
             result.status = rc;
             result.request_api = evt;
@@ -1126,7 +1065,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
     case QCAMERA_SM_EVT_STOP_PREVIEW:
         {
             rc = m_parent->stopPreview();
-            applyDelayedMsgs();
             m_state = QCAMERA_SM_STATE_PREVIEW_STOPPED;
             result.status = rc;
             result.request_api = evt;
@@ -1136,7 +1074,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
         break;
     case QCAMERA_SM_EVT_PREVIEW_ENABLED:
         {
-            applyDelayedMsgs();
             rc = NO_ERROR;
             result.status = rc;
             result.request_api = evt;
@@ -1197,7 +1134,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             if (rc == NO_ERROR) {
                 // move state to recording state
                 m_state = QCAMERA_SM_STATE_RECORDING;
-                applyDelayedMsgs();
             }
             result.status = rc;
             result.request_api = evt;
@@ -1212,7 +1148,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
                 // Do not signal API result in this case.
                 // Need to wait for snapshot done in metadta.
                 m_state = QCAMERA_SM_STATE_PREPARE_SNAPSHOT;
-                applyDelayedMsgs();
             } else {
                 // Do not change state in this case.
                 ALOGE("%s: prepareHardwareForSnapshot failed %d",
@@ -1232,7 +1167,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
            if ( m_parent->mParameters.getRecordingHintValue() == false) {
                if (m_parent->isZSLMode() || m_parent->isLongshotEnabled()) {
                    m_state = QCAMERA_SM_STATE_PREVIEW_PIC_TAKING;
-                   m_bDelayPreviewMsgs = true;
                    rc = m_parent->takePicture();
                    if (rc != NO_ERROR) {
                        // move state to previewing state
@@ -1353,24 +1287,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
                 break;
-            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
-                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
-                rc = m_parent->processAEInfo(internal_evt->ae_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
-                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
-                break;
-            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
-                rc = m_parent->processHDRData(internal_evt->hdr_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
-                rc = m_parent->processRetroAECUnlock();
-                break;
-            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
-                rc = m_parent->processZSLCaptureDone();
-                break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
                             __func__, internal_evt->evt_type, m_state);
@@ -1384,14 +1300,6 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1519,24 +1427,6 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
-            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
-                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
-                rc = m_parent->processAEInfo(internal_evt->ae_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
-                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
-                break;
-            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
-                rc = m_parent->processHDRData(internal_evt->hdr_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
-                rc = m_parent->processRetroAECUnlock();
-                break;
-            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
-                rc = m_parent->processZSLCaptureDone();
-                break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
                             __func__, internal_evt->evt_type, m_state);
@@ -1550,14 +1440,6 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -1869,24 +1751,6 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
-            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
-                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
-                rc = m_parent->processAEInfo(internal_evt->ae_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
-                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
-                break;
-            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
-                rc = m_parent->processHDRData(internal_evt->hdr_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
-                rc = m_parent->processRetroAECUnlock();
-                break;
-            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
-                rc = m_parent->processZSLCaptureDone();
-                break;
             default:
                 break;
             }
@@ -1910,14 +1774,6 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                     result.result_type = QCAMERA_API_RESULT_TYPE_DEF;
                     m_parent->signalAPIResult(&result);
 
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2291,24 +2147,6 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
-            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
-                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
-                rc = m_parent->processAEInfo(internal_evt->ae_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
-                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
-                break;
-            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
-                rc = m_parent->processHDRData(internal_evt->hdr_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
-                rc = m_parent->processRetroAECUnlock();
-                break;
-            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
-                rc = m_parent->processZSLCaptureDone();
-                break;
             default:
                 break;
             }
@@ -2320,14 +2158,6 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -2654,24 +2484,6 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
-            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
-                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
-                rc = m_parent->processAEInfo(internal_evt->ae_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
-                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
-                break;
-            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
-                rc = m_parent->processHDRData(internal_evt->hdr_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
-                rc = m_parent->processRetroAECUnlock();
-                break;
-            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
-                rc = m_parent->processZSLCaptureDone();
-                break;
             default:
                 break;
             }
@@ -2683,14 +2495,6 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);
@@ -3119,24 +2923,6 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
-            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
-                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
-                rc = m_parent->processAEInfo(internal_evt->ae_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
-                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
-                break;
-            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
-                rc = m_parent->processHDRData(internal_evt->hdr_data);
-                break;
-            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
-                rc = m_parent->processRetroAECUnlock();
-                break;
-            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
-                rc = m_parent->processZSLCaptureDone();
-                break;
             default:
                 break;
             }
@@ -3148,14 +2934,6 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
             switch (cam_evt->server_event_type) {
             case CAM_EVENT_TYPE_DAEMON_DIED:
                 {
-                    //close the camera backend
-                    mm_camera_vtbl_t* handle = m_parent->mCameraHandle;
-                    if (handle && handle->ops) {
-                        handle->ops->error_close_camera(handle->camera_handle);
-                    } else {
-                        ALOGE("%s: Could not close because the handle or ops is NULL",
-                                __func__);
-                    }
                     m_parent->sendEvtNotify(CAMERA_MSG_ERROR,
                                             CAMERA_ERROR_SERVER_DIED,
                                             0);

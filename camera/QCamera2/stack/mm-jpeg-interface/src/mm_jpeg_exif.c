@@ -534,13 +534,15 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
   int rc = 0;
   cam_sensor_params_t p_sensor_params;
   cam_3a_params_t p_3a_params;
+  cam_auto_scene_t *scene_cap_type;
 
   memset(&p_3a_params,  0,  sizeof(cam_3a_params_t));
   memset(&p_sensor_params, 0, sizeof(cam_sensor_params_t));
 
   if (hal_version == CAM_HAL_V1) {
-    IF_META_AVAILABLE(cam_3a_params_t, l_3a_params, CAM_INTF_META_AEC_INFO,
-        p_meta) {
+    if (p_meta && IS_META_AVAILABLE(CAM_INTF_META_AEC_INFO, p_meta)) {
+      cam_3a_params_t *l_3a_params = (cam_3a_params_t*)
+        POINTER_OF_META(CAM_INTF_META_AEC_INFO, p_meta);
       p_3a_params = *l_3a_params;
     } else if (p_cam_exif_params) {
       p_3a_params = p_cam_exif_params->cam_3a_params;
@@ -554,12 +556,9 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
       p_3a_params.brightness = 0.0;
     }
 
-    IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
-      p_3a_params.wb_mode = *wb_mode;
-    }
-
-    IF_META_AVAILABLE(cam_sensor_params_t, l_sensor_params,
-        CAM_INTF_META_SENSOR_INFO, p_meta) {
+    if (p_meta && IS_META_AVAILABLE(CAM_INTF_META_SENSOR_INFO, p_meta)) {
+      cam_sensor_params_t *l_sensor_params = (cam_sensor_params_t*)
+        POINTER_OF_META(CAM_INTF_META_SENSOR_INFO, p_meta);
       p_sensor_params = *l_sensor_params;
     } else if (p_cam_exif_params) {
       p_sensor_params = p_cam_exif_params->sensor_params;
@@ -570,43 +569,51 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
       p_sensor_params.crop_factor = 0;
     }
   } else {
-
     /* Process 3a data */
-    IF_META_AVAILABLE(int32_t, iso, CAM_INTF_META_SENSOR_SENSITIVITY, p_meta) {
+    int32_t *iso =
+      (int32_t *)POINTER_OF_META(CAM_INTF_META_SENSOR_SENSITIVITY, p_meta);
+    if (NULL != iso) {
       p_3a_params.iso_value= *iso;
     } else {
       ALOGE("%s: Cannot extract Iso value", __func__);
     }
 
-    IF_META_AVAILABLE(int64_t, sensor_exposure_time,
-        CAM_INTF_META_SENSOR_EXPOSURE_TIME, p_meta) {
+    int64_t *sensor_exposure_time =
+      (int64_t *)POINTER_OF_META(CAM_INTF_META_SENSOR_EXPOSURE_TIME, p_meta);
+    if (NULL != sensor_exposure_time) {
       p_3a_params.exp_time =
         (float)((double)(*sensor_exposure_time) / 1000000000.0);
     } else {
       ALOGE("%s: Cannot extract Exp time value", __func__);
     }
 
-    IF_META_AVAILABLE(int32_t, wb_mode, CAM_INTF_PARM_WHITE_BALANCE, p_meta) {
+    int32_t *wb_mode =
+      (int32_t *)POINTER_OF_META(CAM_INTF_PARM_WHITE_BALANCE, p_meta);
+    if (NULL != wb_mode) {
       p_3a_params.wb_mode = *wb_mode;
     } else {
       ALOGE("%s: Cannot extract white balance mode", __func__);
     }
 
     /* Process sensor data */
-    IF_META_AVAILABLE(float, aperture, CAM_INTF_META_LENS_APERTURE, p_meta) {
+    float *aperture = (float *)POINTER_OF_META(CAM_INTF_META_LENS_APERTURE, p_meta);
+    if (NULL != aperture) {
       p_sensor_params.aperture_value = *aperture;
     } else {
       ALOGE("%s: Cannot extract Aperture value", __func__);
     }
 
-    IF_META_AVAILABLE(uint32_t, flash_mode, CAM_INTF_META_FLASH_MODE, p_meta) {
+    uint8_t *flash_mode = (uint8_t *) POINTER_OF_META(CAM_INTF_META_FLASH_MODE, p_meta);
+    if (NULL != flash_mode) {
       p_sensor_params.flash_mode = *flash_mode;
     } else {
       ALOGE("%s: Cannot extract flash mode value", __func__);
     }
 
-    IF_META_AVAILABLE(int32_t, flash_state, CAM_INTF_META_FLASH_STATE, p_meta) {
-      p_sensor_params.flash_state = (cam_flash_state_t) *flash_state;
+    int32_t *flash_state =
+      (int32_t *) POINTER_OF_META(CAM_INTF_META_FLASH_STATE, p_meta);
+    if (NULL != flash_state) {
+      p_sensor_params.flash_state = (cam_flash_state_t)*flash_state;
     } else {
       ALOGE("%s: Cannot extract flash state value", __func__);
     }
@@ -624,13 +631,14 @@ int process_meta_data(metadata_buffer_t *p_meta, QOMX_EXIF_INFO *exif_info,
   }
 
   if (p_meta) {
-    short val_short = 0;
-
-    IF_META_AVAILABLE(cam_auto_scene_t, scene_cap_type,
-        CAM_INTF_META_ASD_SCENE_CAPTURE_TYPE, p_meta) {
+    short val_short;
+    scene_cap_type =
+      (cam_auto_scene_t *)POINTER_OF_META(CAM_INTF_META_ASD_SCENE_CAPTURE_TYPE, p_meta);
+    if (scene_cap_type != NULL) {
       val_short = (short) *scene_cap_type;
+    } else {
+      val_short = 0;
     }
-
     rc = addExifEntry(exif_info, EXIFTAGID_SCENE_CAPTURE_TYPE, EXIF_SHORT,
       sizeof(val_short)/2, &val_short);
     if (rc) {

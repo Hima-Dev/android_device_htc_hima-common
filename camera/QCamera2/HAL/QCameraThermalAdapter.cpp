@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -152,12 +152,11 @@ int QCameraThermalAdapter::thermalCallback(int level,
 {
     int rc = 0;
     CDBG("%s E", __func__);
-    QCameraThermalCallback *mcb = getInstance().mCallback;
+    QCameraThermalAdapter& instance = getInstance();
+    instance.mCallback->setThermalLevel((qcamera_thermal_level_enum_t) level);
 
-    if (mcb) {
-        mcb->setThermalLevel((qcamera_thermal_level_enum_t) level);
-        rc = mcb->thermalEvtHandle(mcb->getThermalLevel(), userdata, data);
-    }
+    if (instance.mCallback)
+        rc = instance.mCallback->thermalEvtHandle(instance.mCallback->getThermalLevel(), userdata, data);
     CDBG("%s X", __func__);
     return rc;
 }
