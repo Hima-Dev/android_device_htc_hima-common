@@ -132,7 +132,7 @@ static int amp_module_open(const hw_module_t *module, UNUSED const char *name,
 
     *device = (hw_device_t *) m9_dev;
 
-    tfa9887_open();
+    tfa9895_open();
 
     return 0;
 }

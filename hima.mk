@@ -70,6 +70,7 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PACKAGES += \
     audiod \
     audio.a2dp.default \
+    audio_amplifier.msm8994 \
     audio.primary.msm8994 \
     audio.r_submix.default \
     audio.usb.default \
