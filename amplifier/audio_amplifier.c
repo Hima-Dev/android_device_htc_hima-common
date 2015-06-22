@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013, The CyanogenMod Project
+ * Copyright (C) 2015, The CyanogenMod Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,23 +27,23 @@
 
 #include <msm8974/platform.h>
 
-#include "tfa9887.h"
-#include "rt5501.h"
+#include "tfa9895.h"
+#include "rt5506.h"
 
 #define UNUSED __attribute__((unused))
 
-typedef struct m8_device {
+typedef struct m9_device {
     amplifier_device_t amp_dev;
     uint32_t current_output_devices;
     audio_mode_t current_mode;
-} m8_device_t;
+} m9_device_t;
 
-static m8_device_t *m8_dev = NULL;
+static m9_device_t *m9_dev = NULL;
 
 static int amp_set_mode(amplifier_device_t *device, audio_mode_t mode)
 {
     int ret = 0;
-    m8_device_t *dev = (m8_device_t *) device;
+    m9_device_t *dev = (m9_device_t *) device;
 
     dev->current_mode = mode;
 
@@ -52,7 +52,7 @@ static int amp_set_mode(amplifier_device_t *device, audio_mode_t mode)
 
 static int amp_set_output_devices(amplifier_device_t *device, uint32_t devices)
 {
-    m8_device_t *dev = (m8_device_t *) device;
+    m9_device_t *dev = (m9_device_t *) device;
 
     dev->current_output_devices = devices;
 
@@ -61,7 +61,7 @@ static int amp_set_output_devices(amplifier_device_t *device, uint32_t devices)
         case SND_DEVICE_OUT_VOICE_HEADPHONES:
         case SND_DEVICE_OUT_VOIP_HEADPHONES:
         case SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES:
-            rt5501_set_mode(dev->current_mode);
+            rt5506_set_mode(dev->current_mode);
             break;
     }
     return 0;
@@ -70,7 +70,7 @@ static int amp_set_output_devices(amplifier_device_t *device, uint32_t devices)
 static int amp_output_stream_start(amplifier_device_t *device,
         UNUSED struct audio_stream_out *stream, UNUSED bool offload)
 {
-    m8_device_t *dev = (m8_device_t *) device;
+    m9_device_t *dev = (m9_device_t *) device;
 
     switch (dev->current_output_devices) {
         case SND_DEVICE_OUT_SPEAKER:
@@ -79,8 +79,8 @@ static int amp_output_stream_start(amplifier_device_t *device,
         case SND_DEVICE_OUT_SPEAKER_PROTECTED:
         case SND_DEVICE_OUT_VOIP_SPEAKER:
         case SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES:
-            /* TFA9887 requires I2S to be active in order to change mode */
-            tfa9887_set_mode(dev->current_mode);
+            /* TFA9895 requires I2S to be active in order to change mode */
+            tfa9895_set_mode(dev->current_mode);
             break;
     }
 
@@ -89,9 +89,9 @@ static int amp_output_stream_start(amplifier_device_t *device,
 
 static int amp_dev_close(hw_device_t *device)
 {
-    m8_device_t *dev = (m8_device_t *) device;
+    m9_device_t *dev = (m9_device_t *) device;
 
-    tfa9887_close();
+    tfa9895_close();
 
     free(dev);
 
@@ -101,36 +101,36 @@ static int amp_dev_close(hw_device_t *device)
 static int amp_module_open(const hw_module_t *module, UNUSED const char *name,
         hw_device_t **device)
 {
-    if (m8_dev) {
-        ALOGE("%s:%d: Unable to open second instance of TFA9887 amplifier\n",
+    if (m9_dev) {
+        ALOGE("%s:%d: Unable to open second instance of TFA9895 amplifier\n",
                 __func__, __LINE__);
         return -EBUSY;
     }
 
-    m8_dev = calloc(1, sizeof(m8_device_t));
-    if (!m8_dev) {
+    m9_dev = calloc(1, sizeof(m9_device_t));
+    if (!m9_dev) {
         ALOGE("%s:%d: Unable to allocate memory for amplifier device\n",
                 __func__, __LINE__);
         return -ENOMEM;
     }
 
-    m8_dev->amp_dev.common.tag = HARDWARE_DEVICE_TAG;
-    m8_dev->amp_dev.common.module = (hw_module_t *) module;
-    m8_dev->amp_dev.common.version = HARDWARE_DEVICE_API_VERSION(1, 0);
-    m8_dev->amp_dev.common.close = amp_dev_close;
+    m9_dev->amp_dev.common.tag = HARDWARE_DEVICE_TAG;
+    m9_dev->amp_dev.common.module = (hw_module_t *) module;
+    m9_dev->amp_dev.common.version = HARDWARE_DEVICE_API_VERSION(1, 0);
+    m9_dev->amp_dev.common.close = amp_dev_close;
 
-    m8_dev->amp_dev.set_input_devices = NULL;
-    m8_dev->amp_dev.set_output_devices = amp_set_output_devices;
-    m8_dev->amp_dev.set_mode = amp_set_mode;
-    m8_dev->amp_dev.output_stream_start = amp_output_stream_start;
-    m8_dev->amp_dev.input_stream_start = NULL;
-    m8_dev->amp_dev.output_stream_standby = NULL;
-    m8_dev->amp_dev.input_stream_standby = NULL;
+    m9_dev->amp_dev.set_input_devices = NULL;
+    m9_dev->amp_dev.set_output_devices = amp_set_output_devices;
+    m9_dev->amp_dev.set_mode = amp_set_mode;
+    m9_dev->amp_dev.output_stream_start = amp_output_stream_start;
+    m9_dev->amp_dev.input_stream_start = NULL;
+    m9_dev->amp_dev.output_stream_standby = NULL;
+    m9_dev->amp_dev.input_stream_standby = NULL;
 
-    m8_dev->current_output_devices = SND_DEVICE_NONE;
-    m8_dev->current_mode = AUDIO_MODE_NORMAL;
+    m9_dev->current_output_devices = SND_DEVICE_NONE;
+    m9_dev->current_mode = AUDIO_MODE_NORMAL;
 
-    *device = (hw_device_t *) m8_dev;
+    *device = (hw_device_t *) m9_dev;
 
     tfa9887_open();
 
@@ -147,7 +147,7 @@ amplifier_module_t HAL_MODULE_INFO_SYM = {
         .module_api_version = AMPLIFIER_MODULE_API_VERSION_0_1,
         .hal_api_version = HARDWARE_HAL_API_VERSION,
         .id = AMPLIFIER_HARDWARE_MODULE_ID,
-        .name = "M8 audio amplifier HAL",
+        .name = "M9 audio amplifier HAL",
         .author = "The CyanogenMod Open Source Project",
         .methods = &hal_module_methods,
     },

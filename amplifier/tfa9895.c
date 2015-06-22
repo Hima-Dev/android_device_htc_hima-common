@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013, The CyanogenMod Project
+ * Copyright (C) 2015, The CyanogenMod Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "tfa9887"
+#define LOG_TAG "tfa9895"
 //#define LOG_NDEBUG 0
 
 #include <errno.h>
@@ -31,48 +31,48 @@
 #include <system/audio.h>
 #include <tinyalsa/asoundlib.h>
 
-#include "tfa9887.h"
+#include "tfa9895.h"
 
 #define UNUSED __attribute__((unused))
 
 /* Module variables */
 
-const struct mode_config_t right_mode_configs[TFA9887_MODE_MAX] = {
+const struct mode_config_t right_mode_configs[TFA9895_MODE_MAX] = {
     {   /* Playback */
-        .config = CONFIG_TFA9887,
+        .config = CONFIG_TFA9895,
         .preset = PRESET_PLAYBACK_R,
         .eq = EQ_PLAYBACK_R,
         .drc = DRC_PLAYBACK_R
     },
     {   /* Ring */
-        .config = CONFIG_TFA9887,
+        .config = CONFIG_TFA9895,
         .preset = PRESET_RING_R,
         .eq = EQ_RING_R,
         .drc = DRC_RING_R
     },
     {   /* Voice */
-        .config = CONFIG_TFA9887,
+        .config = CONFIG_TFA9895,
         .preset = PRESET_VOICE_R,
         .eq = EQ_VOICE_R,
         .drc = DRC_VOICE_R
     }
 };
 
-const struct mode_config_t left_mode_configs[TFA9887_MODE_MAX] = {
+const struct mode_config_t left_mode_configs[TFA9895_MODE_MAX] = {
     {   /* Playback */
-        .config = CONFIG_TFA9887,
+        .config = CONFIG_TFA9895,
         .preset = PRESET_PLAYBACK_L,
         .eq = EQ_PLAYBACK_L,
         .drc = DRC_PLAYBACK_L
     },
     {   /* Ring */
-        .config = CONFIG_TFA9887,
+        .config = CONFIG_TFA9895,
         .preset = PRESET_RING_L,
         .eq = EQ_RING_L,
         .drc = DRC_RING_L
     },
     {   /* Voice */
-        .config = CONFIG_TFA9887,
+        .config = CONFIG_TFA9895,
         .preset = PRESET_VOICE_L,
         .eq = EQ_VOICE_L,
         .drc = DRC_VOICE_L
@@ -82,7 +82,7 @@ const struct mode_config_t left_mode_configs[TFA9887_MODE_MAX] = {
 #define AMP_RIGHT 0
 #define AMP_LEFT 1
 #define AMP_MAX 2
-static struct tfa9887_amp_t *amps = NULL;
+static struct tfa9895_amp_t *amps = NULL;
 
 /* Helper functions */
 
@@ -118,7 +118,7 @@ static int i2s_interface_en(bool enable)
 
 void * write_dummy_data(void *param)
 {
-    struct tfa9887_amp_t *amp = (struct tfa9887_amp_t *) param;
+    struct tfa9895_amp_t *amp = (struct tfa9895_amp_t *) param;
     uint8_t *buffer;
     int size;
     struct pcm *pcm;
@@ -210,13 +210,13 @@ static uint32_t get_mode(audio_mode_t mode)
 {
     switch (mode) {
         case AUDIO_MODE_RINGTONE:
-            return TFA9887_MODE_RING;
+            return TFA9895_MODE_RING;
         case AUDIO_MODE_IN_CALL:
         case AUDIO_MODE_IN_COMMUNICATION:
-            return TFA9887_MODE_VOICE;
+            return TFA9895_MODE_VOICE;
         case AUDIO_MODE_NORMAL:
         default:
-            return TFA9887_MODE_PLAYBACK;
+            return TFA9895_MODE_PLAYBACK;
     }
 }
 
@@ -260,9 +260,9 @@ static void bytes2data(const uint8_t bytes[], int num_bytes,
     }
 }
 
-/* TFA9887 helper functions */
+/* TFA9895 helper functions */
 
-static int tfa9887_read_reg(struct tfa9887_amp_t *amp, uint8_t reg,
+static int tfa9895_read_reg(struct tfa9895_amp_t *amp, uint8_t reg,
         uint16_t *val)
 {
     int ret = 0;
@@ -279,15 +279,15 @@ static int tfa9887_read_reg(struct tfa9887_amp_t *amp, uint8_t reg,
     /* unsure why the first byte is skipped */
     buf[0] = 0;
     buf[1] = reg;
-    if ((ret = ioctl(amp->fd, TPA9887_WRITE_CONFIG, &reg_val)) != 0) {
-        ALOGE("ioctl %d failed, ret = %d", TPA9887_WRITE_CONFIG, ret);
+    if ((ret = ioctl(amp->fd, TPA9895_WRITE_CONFIG, &reg_val)) != 0) {
+        ALOGE("ioctl %d failed, ret = %d", TPA9895_WRITE_CONFIG, ret);
         goto read_reg_err;
     }
 
     reg_val[0] = 2;
     reg_val[1] = (uint64_t) &buf;
-    if ((ret = ioctl(amp->fd, TPA9887_READ_CONFIG, &reg_val)) != 0) {
-        ALOGE("ioctl %d failed, ret = %d", TPA9887_READ_CONFIG, ret);
+    if ((ret = ioctl(amp->fd, TPA9895_READ_CONFIG, &reg_val)) != 0) {
+        ALOGE("ioctl %d failed, ret = %d", TPA9895_READ_CONFIG, ret);
         goto read_reg_err;
     }
 
@@ -297,7 +297,7 @@ read_reg_err:
     return ret;
 }
 
-static int tfa9887_write_reg(struct tfa9887_amp_t *amp, uint8_t reg,
+static int tfa9895_write_reg(struct tfa9895_amp_t *amp, uint8_t reg,
         uint16_t val)
 {
     int ret = 0;
@@ -316,8 +316,8 @@ static int tfa9887_write_reg(struct tfa9887_amp_t *amp, uint8_t reg,
     buf[1] = reg;
     buf[2] = (0xFF00 & val) >> 8;
     buf[3] = (0x00FF & val);
-    if ((ret = ioctl(amp->fd, TPA9887_WRITE_CONFIG, &reg_val)) != 0) {
-        ALOGE("ioctl %d failed, ret = %d", TPA9887_WRITE_CONFIG, ret);
+    if ((ret = ioctl(amp->fd, TPA9895_WRITE_CONFIG, &reg_val)) != 0) {
+        ALOGE("ioctl %d failed, ret = %d", TPA9895_WRITE_CONFIG, ret);
         goto write_reg_err;
     }
 
@@ -325,7 +325,7 @@ write_reg_err:
     return ret;
 }
 
-static int tfa9887_read(struct tfa9887_amp_t *amp, int addr, uint8_t *buf,
+static int tfa9895_read(struct tfa9895_amp_t *amp, int addr, uint8_t *buf,
         int len)
 {
     int ret = 0;
@@ -343,15 +343,15 @@ static int tfa9887_read(struct tfa9887_amp_t *amp, int addr, uint8_t *buf,
     /* unsure why the first byte is skipped */
     reg_buf[0] = 0;
     reg_buf[1] = (0xFF & addr);
-    if ((ret = ioctl(amp->fd, TPA9887_WRITE_CONFIG, &reg_val)) != 0) {
-        ALOGE("ioctl %d failed, ret = %d", TPA9887_WRITE_CONFIG, ret);
+    if ((ret = ioctl(amp->fd, TPA9895_WRITE_CONFIG, &reg_val)) != 0) {
+        ALOGE("ioctl %d failed, ret = %d", TPA9895_WRITE_CONFIG, ret);
         goto read_err;
     }
 
     reg_val[0] = len;
     reg_val[1] = (uint64_t) &kernel_buf;
-    if ((ret = ioctl(amp->fd, TPA9887_READ_CONFIG, &reg_val)) != 0) {
-        ALOGE("ioctl %d failed, ret = %d", TPA9887_READ_CONFIG, ret);
+    if ((ret = ioctl(amp->fd, TPA9895_READ_CONFIG, &reg_val)) != 0) {
+        ALOGE("ioctl %d failed, ret = %d", TPA9895_READ_CONFIG, ret);
         goto read_err;
     }
     memcpy(buf, kernel_buf, len);
@@ -360,7 +360,7 @@ read_err:
     return ret;
 }
 
-static int tfa9887_write(struct tfa9887_amp_t *amp, int addr,
+static int tfa9895_write(struct tfa9895_amp_t *amp, int addr,
         const uint8_t *buf, int len)
 {
     int ret = 0;
@@ -379,8 +379,8 @@ static int tfa9887_write(struct tfa9887_amp_t *amp, int addr,
     ioctl_buf[1] = (0xFF & addr);
     memcpy(ioctl_buf + 2, buf, len);
 
-    if ((ret = ioctl(amp->fd, TPA9887_WRITE_CONFIG, &reg_val)) != 0) {
-        ALOGE("ioctl %d failed, ret = %d", TPA9887_WRITE_CONFIG, ret);
+    if ((ret = ioctl(amp->fd, TPA9895_WRITE_CONFIG, &reg_val)) != 0) {
+        ALOGE("ioctl %d failed, ret = %d", TPA9895_WRITE_CONFIG, ret);
         goto write_err;
     }
 
@@ -388,7 +388,7 @@ write_err:
     return ret;
 }
 
-static int tfa9887_read_mem(struct tfa9887_amp_t *amp, uint16_t start_offset,
+static int tfa9895_read_mem(struct tfa9895_amp_t *amp, uint16_t start_offset,
         int num_words, uint32_t *p_values)
 {
     uint16_t cf_ctrl; /* the value to sent to the CF_CONTROLS register */
@@ -404,23 +404,23 @@ static int tfa9887_read_mem(struct tfa9887_amp_t *amp, uint16_t start_offset,
     }
 
     /* first set DMEM and AIF, leaving other bits intact */
-    error = tfa9887_read_reg(amp, TFA9887_CF_CONTROLS, &cf_ctrl);
+    error = tfa9895_read_reg(amp, TFA9895_CF_CONTROLS, &cf_ctrl);
     if (error != 0) {
         ALOGE("%s: error reading from register %d",
-                __func__, TFA9887_CF_CONTROLS);
+                __func__, TFA9895_CF_CONTROLS);
         goto read_mem_err;
     }
     cf_ctrl &= ~0x000E; /* clear AIF & DMEM */
-    cf_ctrl |= (TFA9887_DMEM_XMEM << 1); /* set DMEM, leave AIF cleared for autoincrement */
-    error = tfa9887_write_reg(amp, TFA9887_CF_CONTROLS, cf_ctrl);
+    cf_ctrl |= (TFA9895_DMEM_XMEM << 1); /* set DMEM, leave AIF cleared for autoincrement */
+    error = tfa9895_write_reg(amp, TFA9895_CF_CONTROLS, cf_ctrl);
     if (error != 0) {
         ALOGE("%s: error writing to register %d",
-                __func__, TFA9887_CF_CONTROLS);
+                __func__, TFA9895_CF_CONTROLS);
         goto read_mem_err;
     }
-    error = tfa9887_write_reg(amp, TFA9887_CF_MAD, start_offset);
+    error = tfa9895_write_reg(amp, TFA9895_CF_MAD, start_offset);
     if (error != 0) {
-        ALOGE("%s: error writing to register %d", __func__, TFA9887_CF_MAD);
+        ALOGE("%s: error writing to register %d", __func__, TFA9895_CF_MAD);
         goto read_mem_err;
     }
     num_bytes = num_words * bytes_per_word;
@@ -430,9 +430,9 @@ static int tfa9887_read_mem(struct tfa9887_amp_t *amp, uint16_t start_offset,
         if (num_bytes < burst_size) {
             burst_size = num_bytes;
         }
-        error = tfa9887_read(amp, TFA9887_CF_MEM, bytes, burst_size);
+        error = tfa9895_read(amp, TFA9895_CF_MEM, bytes, burst_size);
         if (error != 0) {
-            ALOGE("%s: error reading from %d", __func__, TFA9887_CF_MEM);
+            ALOGE("%s: error reading from %d", __func__, TFA9895_CF_MEM);
             goto read_mem_err;
         }
         bytes2data(bytes, burst_size,  p);
@@ -446,7 +446,7 @@ read_mem_err:
 
 /* Hardware functions */
 
-static int tfa9887_load_patch(struct tfa9887_amp_t *amp, const char *file_name)
+static int tfa9895_load_patch(struct tfa9895_amp_t *amp, const char *file_name)
 {
     int error;
     int size;
@@ -467,16 +467,16 @@ static int tfa9887_load_patch(struct tfa9887_amp_t *amp, const char *file_name)
         return -EIO;
     }
 
-    error = tfa9887_read_reg(amp, TFA9887_STATUS, &status);
+    error = tfa9895_read_reg(amp, TFA9895_STATUS, &status);
     if (error != 0) {
         if ((status & 0x0043) != 0x0043) {
             /* one of Vddd, PLL and clocks not ok */
             error = -1;
         }
     }
-    ALOGI("tfa9887 status %u", status);
-    error = tfa9887_read_mem(amp, 0x2210, 1, &value);
-    ALOGI("tfa9887 version %x", value);
+    ALOGI("tfa9895 status %u", status);
+    error = tfa9895_read_mem(amp, 0x2210, 1, &value);
+    ALOGI("tfa9895 version %x", value);
     while (index < length) {
         /* extract little endian length */
         size = bytes[index] + bytes[index+1] * 256;
@@ -486,7 +486,7 @@ static int tfa9887_load_patch(struct tfa9887_amp_t *amp, const char *file_name)
             return -1;
         }
         memcpy(buffer, bytes + index, size);
-        error = tfa9887_write(amp, buffer[0],
+        error = tfa9895_write(amp, buffer[0],
                 &buffer[1], size - 1);
         ALOGV("%d %d", buffer[0], size - 1);
         if (error != 0) {
@@ -498,7 +498,7 @@ static int tfa9887_load_patch(struct tfa9887_amp_t *amp, const char *file_name)
     return error;
 }
 
-static int tfa9887_load_dsp(struct tfa9887_amp_t *amp, const char *param_file)
+static int tfa9895_load_dsp(struct tfa9895_amp_t *amp, const char *param_file)
 {
     int error;
     uint16_t cf_ctrl = 0x0002; /* the value to be sent to the CF_CONTROLS register: cf_req=00000000, cf_int=0, cf_aif=0, cf_dmem=XMEM=01, cf_rst_dsp=0 */
@@ -525,23 +525,23 @@ static int tfa9887_load_dsp(struct tfa9887_amp_t *amp, const char *param_file)
         return -EIO;
     }
 
-    error = tfa9887_write_reg(amp, TFA9887_CF_CONTROLS, cf_ctrl);
+    error = tfa9895_write_reg(amp, TFA9895_CF_CONTROLS, cf_ctrl);
     if (error == 0) {
-        error = tfa9887_write_reg(amp, TFA9887_CF_MAD, cf_mad);
+        error = tfa9895_write_reg(amp, TFA9895_CF_MAD, cf_mad);
     }
     if (error == 0) {
         id[0] = 0;
         id[1] = module_id + 128;
         id[2] = param_id;
-        error = tfa9887_write(amp, TFA9887_CF_MEM, id, 3);
+        error = tfa9895_write(amp, TFA9895_CF_MEM, id, 3);
     }
 
-    error = tfa9887_write(amp, TFA9887_CF_MEM, data, num_bytes);
+    error = tfa9895_write(amp, TFA9895_CF_MEM, data, num_bytes);
     if (error == 0) {
         cf_ctrl |= (1 << 8) | (1 << 4); /* set the cf_req1 and cf_int bit */
-        error = tfa9887_write_reg(amp, TFA9887_CF_CONTROLS, cf_ctrl);
+        error = tfa9895_write_reg(amp, TFA9895_CF_CONTROLS, cf_ctrl);
         do {
-            error = tfa9887_read_reg(amp, TFA9887_CF_STATUS, &cf_status);
+            error = tfa9895_read_reg(amp, TFA9895_CF_STATUS, &cf_status);
             tries++;
             usleep(1000);
             /* don't wait forever, DSP is pretty quick to respond (< 1ms) */
@@ -558,16 +558,16 @@ static int tfa9887_load_dsp(struct tfa9887_amp_t *amp, const char *param_file)
     cf_ctrl = 0x0002;
     cf_mad = 0x0000;
     if (error == 0) {
-        error = tfa9887_write_reg(amp, TFA9887_CF_CONTROLS, cf_ctrl);
+        error = tfa9895_write_reg(amp, TFA9895_CF_CONTROLS, cf_ctrl);
     }
     if (error == 0) {
-        error = tfa9887_write_reg(amp, TFA9887_CF_MAD, cf_mad);
+        error = tfa9895_write_reg(amp, TFA9895_CF_MAD, cf_mad);
     }
     tries = 0;
     if (error == 0) {
         /* wait for mem to come to stable state */
         do {
-            error = tfa9887_read(amp, TFA9887_CF_MEM, mem, 3);
+            error = tfa9895_read(amp, TFA9895_CF_MEM, mem, 3);
             rpc_status = (int)((mem[0] << 16) | (mem[1] << 8) | mem[2]);
             tries++;
             usleep(1000);
@@ -582,80 +582,80 @@ static int tfa9887_load_dsp(struct tfa9887_amp_t *amp, const char *param_file)
     return error;
 }
 
-static int htc_init9887(struct tfa9887_amp_t *amp)
+static int htc_init9895(struct tfa9895_amp_t *amp)
 {
     int error;
     uint16_t value;
 
-    error = tfa9887_read_reg(amp, 0x7, &value);
+    error = tfa9895_read_reg(amp, 0x7, &value);
     if (error != 0) {
         ALOGE("%s: right: unable to read 0x7", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_write_reg(amp, 0x7, 0x5);
+    error = tfa9895_write_reg(amp, 0x7, 0x5);
     if (error != 0) {
         ALOGE("%s: right: unable to write 0x7", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_read_reg(amp, 0x9, &value);
+    error = tfa9895_read_reg(amp, 0x9, &value);
     if (error != 0) {
         ALOGE("%s: right: unable to read 0x9", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_write_reg(amp, 0x9, value | 0x200);
+    error = tfa9895_write_reg(amp, 0x9, value | 0x200);
     if (error != 0) {
         ALOGE("%s: right: unable to write 0x9", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_read_reg(amp, 0xa, &value);
+    error = tfa9895_read_reg(amp, 0xa, &value);
     if (error != 0) {
         ALOGE("%s: right: unable to read 0xa", __func__);
         goto htc_err;
     }
 
     value = value & 0xf9fe;
-    error = tfa9887_write_reg(amp, 0xa, value | 0x10);
+    error = tfa9895_write_reg(amp, 0xa, value | 0x10);
     if (error != 0) {
         ALOGE("%s: right: unable to write 0xa", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_read_reg(amp, 0x7, &value);
+    error = tfa9895_read_reg(amp, 0x7, &value);
     if (error != 0) {
         ALOGE("%s: left: unable to read 0x7", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_write_reg(amp, 0x7, value | 6);
+    error = tfa9895_write_reg(amp, 0x7, value | 6);
     if (error != 0) {
         ALOGE("%s: left: unable to write 0x7", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_read_reg(amp, 0x9, &value);
+    error = tfa9895_read_reg(amp, 0x9, &value);
     if (error != 0) {
         ALOGE("%s: left: unable to read 0x9", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_write_reg(amp, 0x9, value | 0x200);
+    error = tfa9895_write_reg(amp, 0x9, value | 0x200);
     if (error != 0) {
         ALOGE("%s: left: unable to write 0x9", __func__);
         goto htc_err;
     }
 
-    error = tfa9887_read_reg(amp, 0xa, &value);
+    error = tfa9895_read_reg(amp, 0xa, &value);
     if (error != 0) {
         ALOGE("%s: left: unable to read 0xa", __func__);
         goto htc_err;
     }
 
     value = value & 0xf9fe;
-    error = tfa9887_write_reg(amp, 0x9, value | 0x10);
+    error = tfa9895_write_reg(amp, 0x9, value | 0x10);
     if (error != 0) {
         ALOGE("%s: left: unable to write 0x9", __func__);
         goto htc_err;
@@ -665,26 +665,26 @@ htc_err:
     return error;
 }
 
-static int tfa9887_power(struct tfa9887_amp_t *amp, bool on)
+static int tfa9895_power(struct tfa9895_amp_t *amp, bool on)
 {
     int error;
     uint16_t value;
 
-    error = tfa9887_read_reg(amp, TFA9887_SYSTEM_CONTROL, &value);
+    error = tfa9895_read_reg(amp, TFA9895_SYSTEM_CONTROL, &value);
     if (error != 0) {
-        ALOGE("Unable to read from TFA9887_SYSTEM_CONTROL");
+        ALOGE("Unable to read from TFA9895_SYSTEM_CONTROL");
         goto power_err;
     }
 
     // get powerdown bit
-    value &= ~(TFA9887_SYSCTRL_POWERDOWN);
+    value &= ~(TFA9895_SYSCTRL_POWERDOWN);
     if (!on) {
-        value |= TFA9887_SYSCTRL_POWERDOWN;
+        value |= TFA9895_SYSCTRL_POWERDOWN;
     }
 
-    error = tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, value);
+    error = tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, value);
     if (error != 0) {
-        ALOGE("Unable to write TFA9887_SYSTEM_CONTROL");
+        ALOGE("Unable to write TFA9895_SYSTEM_CONTROL");
     }
 
     if (!on) {
@@ -695,7 +695,7 @@ power_err:
     return error;
 }
 
-static int tfa9887_set_volume(struct tfa9887_amp_t *amp, float volume)
+static int tfa9895_set_volume(struct tfa9895_amp_t *amp, float volume)
 {
     int error;
     uint16_t value;
@@ -709,9 +709,9 @@ static int tfa9887_set_volume(struct tfa9887_amp_t *amp, float volume)
         return -1;
     }
 
-    error = tfa9887_read_reg(amp, TFA9887_AUDIO_CONTROL, &value);
+    error = tfa9895_read_reg(amp, TFA9895_AUDIO_CONTROL, &value);
     if (error != 0) {
-        ALOGE("Unable to read from TFA9887_AUDIO_CONTROL");
+        ALOGE("Unable to read from TFA9895_AUDIO_CONTROL");
         goto set_vol_err;
     }
 
@@ -719,9 +719,9 @@ static int tfa9887_set_volume(struct tfa9887_amp_t *amp, float volume)
     volume_int = (((uint8_t) volume) & 0xFF);
 
     value = ((value & 0x00FF) | (volume_int << 8));
-    error = tfa9887_write_reg(amp, TFA9887_AUDIO_CONTROL, value);
+    error = tfa9895_write_reg(amp, TFA9895_AUDIO_CONTROL, value);
     if (error != 0) {
-        ALOGE("Unable to write to TFA9887_AUDIO_CONTROL");
+        ALOGE("Unable to write to TFA9895_AUDIO_CONTROL");
         goto set_vol_err;
     }
 
@@ -729,37 +729,37 @@ set_vol_err:
     return error;
 }
 
-static int tfa9887_mute(struct tfa9887_amp_t *amp, uint32_t mute)
+static int tfa9895_mute(struct tfa9895_amp_t *amp, uint32_t mute)
 {
     int error;
     uint16_t aud_value, sys_value;
 
-    error = tfa9887_read_reg(amp, TFA9887_AUDIO_CONTROL, &aud_value);
+    error = tfa9895_read_reg(amp, TFA9895_AUDIO_CONTROL, &aud_value);
     if (error != 0) {
-        ALOGE("Unable to read from TFA9887_AUDIO_CONTROL");
+        ALOGE("Unable to read from TFA9895_AUDIO_CONTROL");
         goto mute_err;
     }
-    error = tfa9887_read_reg(amp, TFA9887_SYSTEM_CONTROL, &sys_value);
+    error = tfa9895_read_reg(amp, TFA9895_SYSTEM_CONTROL, &sys_value);
     if (error != 0) {
-        ALOGE("Unable to read from TFA9887_SYSTEM_CONTROL");
+        ALOGE("Unable to read from TFA9895_SYSTEM_CONTROL");
         goto mute_err;
     }
 
     switch (mute) {
-        case TFA9887_MUTE_OFF:
+        case TFA9895_MUTE_OFF:
             /* clear CTRL_MUTE, set ENBL_AMP, mute none */
-            aud_value &= ~(TFA9887_AUDIOCTRL_MUTE);
-            sys_value |= TFA9887_SYSCTRL_ENBL_AMP;
+            aud_value &= ~(TFA9895_AUDIOCTRL_MUTE);
+            sys_value |= TFA9895_SYSCTRL_ENBL_AMP;
             break;
-        case TFA9887_MUTE_DIGITAL:
+        case TFA9895_MUTE_DIGITAL:
             /* set CTRL_MUTE, set ENBL_AMP, mute ctrl */
-            aud_value |= TFA9887_AUDIOCTRL_MUTE;
-            sys_value |= TFA9887_SYSCTRL_ENBL_AMP;
+            aud_value |= TFA9895_AUDIOCTRL_MUTE;
+            sys_value |= TFA9895_SYSCTRL_ENBL_AMP;
             break;
-        case TFA9887_MUTE_AMPLIFIER:
+        case TFA9895_MUTE_AMPLIFIER:
             /* clear CTRL_MUTE, clear ENBL_AMP, only mute amp */
-            aud_value &= ~(TFA9887_AUDIOCTRL_MUTE);
-            sys_value &= ~(TFA9887_SYSCTRL_ENBL_AMP);
+            aud_value &= ~(TFA9895_AUDIOCTRL_MUTE);
+            sys_value &= ~(TFA9895_SYSCTRL_ENBL_AMP);
             break;
         default:
             error = -1;
@@ -767,14 +767,14 @@ static int tfa9887_mute(struct tfa9887_amp_t *amp, uint32_t mute)
             goto mute_err;
     }
 
-    error = tfa9887_write_reg(amp, TFA9887_AUDIO_CONTROL, aud_value);
+    error = tfa9895_write_reg(amp, TFA9895_AUDIO_CONTROL, aud_value);
     if (error != 0) {
-        ALOGE("Unable to write TFA9887_AUDIO_CONTROL");
+        ALOGE("Unable to write TFA9895_AUDIO_CONTROL");
         goto mute_err;
     }
-    error = tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, sys_value);
+    error = tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, sys_value);
     if (error != 0) {
-        ALOGE("Unable to write TFA9887_SYSTEM_CONTROL");
+        ALOGE("Unable to write TFA9895_SYSTEM_CONTROL");
         goto mute_err;
     }
 
@@ -782,7 +782,7 @@ mute_err:
     return error;
 }
 
-static int tfa9887_select_input(struct tfa9887_amp_t *amp, int input)
+static int tfa9895_select_input(struct tfa9895_amp_t *amp, int input)
 {
     int error;
     uint16_t value;
@@ -791,13 +791,13 @@ static int tfa9887_select_input(struct tfa9887_amp_t *amp, int input)
         return -ENODEV;
     }
 
-    error = tfa9887_read_reg(amp, TFA9887_I2S_CONTROL, &value);
+    error = tfa9895_read_reg(amp, TFA9895_I2S_CONTROL, &value);
     if (error != 0) {
         goto select_amp_err;
     }
 
     // clear 2 bits
-    value &= ~(0x3 << TFA9887_I2SCTRL_INPUT_SEL_SHIFT);
+    value &= ~(0x3 << TFA9895_I2SCTRL_INPUT_SEL_SHIFT);
 
     switch (input) {
         case 1:
@@ -812,13 +812,13 @@ static int tfa9887_select_input(struct tfa9887_amp_t *amp, int input)
             error = -1;
             goto select_amp_err;
     }
-    error = tfa9887_write_reg(amp, TFA9887_I2S_CONTROL, value);
+    error = tfa9895_write_reg(amp, TFA9895_I2S_CONTROL, value);
 
 select_amp_err:
     return error;
 }
 
-static int tfa9887_select_channel(struct tfa9887_amp_t *amp, int channels)
+static int tfa9895_select_channel(struct tfa9895_amp_t *amp, int channels)
 {
     int error;
     uint16_t value;
@@ -827,14 +827,14 @@ static int tfa9887_select_channel(struct tfa9887_amp_t *amp, int channels)
         return -ENODEV;
     }
 
-    error = tfa9887_read_reg(amp, TFA9887_I2S_CONTROL, &value);
+    error = tfa9895_read_reg(amp, TFA9895_I2S_CONTROL, &value);
     if (error != 0) {
-        ALOGE("Unable to read from TFA9887_I2S_CONTROL");
+        ALOGE("Unable to read from TFA9895_I2S_CONTROL");
         goto select_channel_err;
     }
 
     // clear the 2 bits first
-    value &= ~(0x3 << TFA9887_I2SCTRL_CHANSEL_SHIFT);
+    value &= ~(0x3 << TFA9895_I2SCTRL_CHANSEL_SHIFT);
 
     switch (channels) {
         case 0:
@@ -852,9 +852,9 @@ static int tfa9887_select_channel(struct tfa9887_amp_t *amp, int channels)
             error = -1;
             goto select_channel_err;
     }
-    error = tfa9887_write_reg(amp, TFA9887_I2S_CONTROL, value);
+    error = tfa9895_write_reg(amp, TFA9895_I2S_CONTROL, value);
     if (error != 0) {
-        ALOGE("Unable to write to TFA9887_I2S_CONTROL");
+        ALOGE("Unable to write to TFA9895_I2S_CONTROL");
         goto select_channel_err;
     }
 
@@ -862,7 +862,7 @@ select_channel_err:
     return error;
 }
 
-static int tfa9887_set_sample_rate(struct tfa9887_amp_t *amp, int sample_rate)
+static int tfa9895_set_sample_rate(struct tfa9895_amp_t *amp, int sample_rate)
 {
     int error;
     uint16_t value;
@@ -871,50 +871,50 @@ static int tfa9887_set_sample_rate(struct tfa9887_amp_t *amp, int sample_rate)
         return -ENODEV;
     }
 
-    error = tfa9887_read_reg(amp, TFA9887_I2S_CONTROL, &value);
+    error = tfa9895_read_reg(amp, TFA9895_I2S_CONTROL, &value);
     if (error == 0) {
         // clear the 4 bits first
-        value &= (~(0xF << TFA9887_I2SCTRL_RATE_SHIFT));
+        value &= (~(0xF << TFA9895_I2SCTRL_RATE_SHIFT));
         switch (sample_rate) {
             case 48000:
-                value |= TFA9887_I2SCTRL_RATE_48000;
+                value |= TFA9895_I2SCTRL_RATE_48000;
                 break;
             case 44100:
-                value |= TFA9887_I2SCTRL_RATE_44100;
+                value |= TFA9895_I2SCTRL_RATE_44100;
                 break;
             case 32000:
-                value |= TFA9887_I2SCTRL_RATE_32000;
+                value |= TFA9895_I2SCTRL_RATE_32000;
                 break;
             case 24000:
-                value |= TFA9887_I2SCTRL_RATE_24000;
+                value |= TFA9895_I2SCTRL_RATE_24000;
                 break;
             case 22050:
-                value |= TFA9887_I2SCTRL_RATE_22050;
+                value |= TFA9895_I2SCTRL_RATE_22050;
                 break;
             case 16000:
-                value |= TFA9887_I2SCTRL_RATE_16000;
+                value |= TFA9895_I2SCTRL_RATE_16000;
                 break;
             case 12000:
-                value |= TFA9887_I2SCTRL_RATE_12000;
+                value |= TFA9895_I2SCTRL_RATE_12000;
                 break;
             case 11025:
-                value |= TFA9887_I2SCTRL_RATE_11025;
+                value |= TFA9895_I2SCTRL_RATE_11025;
                 break;
             case 8000:
-                value |= TFA9887_I2SCTRL_RATE_08000;
+                value |= TFA9895_I2SCTRL_RATE_08000;
                 break;
             default:
                 ALOGE("Unsupported sample rate %d", sample_rate);
                 error = -1;
                 return error;
         }
-        error = tfa9887_write_reg(amp, TFA9887_I2S_CONTROL, value);
+        error = tfa9895_write_reg(amp, TFA9895_I2S_CONTROL, value);
     }
 
     return error;
 }
 
-static int tfa9887_wait_ready(struct tfa9887_amp_t *amp,
+static int tfa9895_wait_ready(struct tfa9895_amp_t *amp,
         uint32_t ready_bits, uint32_t ready_state)
 {
     int error;
@@ -928,7 +928,7 @@ static int tfa9887_wait_ready(struct tfa9887_amp_t *amp,
 
     tries = 0;
     do {
-        error = tfa9887_read_reg(amp, TFA9887_STATUS, &value);
+        error = tfa9895_read_reg(amp, TFA9895_STATUS, &value);
         ready = (error == 0 &&
                 (value & ready_bits) == ready_state);
         ALOGV("Waiting for 0x%04x, current state: 0x%04x",
@@ -938,14 +938,14 @@ static int tfa9887_wait_ready(struct tfa9887_amp_t *amp,
     } while (!ready && tries < 10);
 
     if (tries >= 10) {
-        ALOGE("Timed out waiting for tfa9887 to become ready");
+        ALOGE("Timed out waiting for tfa9895 to become ready");
         error = -1;
     }
 
     return error;
 }
 
-static int tfa9887_set_configured(struct tfa9887_amp_t *amp)
+static int tfa9895_set_configured(struct tfa9895_amp_t *amp)
 {
     int error;
     uint16_t value;
@@ -954,22 +954,22 @@ static int tfa9887_set_configured(struct tfa9887_amp_t *amp)
         return -ENODEV;
     }
 
-    error = tfa9887_read_reg(amp, TFA9887_SYSTEM_CONTROL, &value);
+    error = tfa9895_read_reg(amp, TFA9895_SYSTEM_CONTROL, &value);
     if (error != 0) {
-        ALOGE("Unable to read from TFA9887_SYSTEM_CONTROL");
+        ALOGE("Unable to read from TFA9895_SYSTEM_CONTROL");
         goto set_conf_err;
     }
-    value |= TFA9887_SYSCTRL_CONFIGURED;
-    tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, value);
+    value |= TFA9895_SYSCTRL_CONFIGURED;
+    tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, value);
     if (error != 0) {
-        ALOGE("Unable to write TFA9887_SYSTEM_CONTROL");
+        ALOGE("Unable to write TFA9895_SYSTEM_CONTROL");
     }
 
 set_conf_err:
     return error;
 }
 
-static int tfa9887_startup(struct tfa9887_amp_t *amp)
+static int tfa9895_startup(struct tfa9895_amp_t *amp)
 {
     int error;
     uint16_t value;
@@ -979,54 +979,54 @@ static int tfa9887_startup(struct tfa9887_amp_t *amp)
         return -ENODEV;
     }
 
-    tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, 0x2);
+    tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, 0x2);
 
-    tfa9887_read_reg(amp, 0x8, &value2);
+    tfa9895_read_reg(amp, 0x8, &value2);
     if ( value2 & 0x400 ) {
-        tfa9887_write_reg(amp, 0x8, value2 & 0xFBFF);
-        tfa9887_read_reg(amp, 0x8, &value2);
-        tfa9887_write_reg(amp, 0x8, value2);
+        tfa9895_write_reg(amp, 0x8, value2 & 0xFBFF);
+        tfa9895_read_reg(amp, 0x8, &value2);
+        tfa9895_write_reg(amp, 0x8, value2);
     }
 
-    error = tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, 0x2);
+    error = tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, 0x2);
     if (0 == error) {
-        error = tfa9887_read_reg(amp, TFA9887_SYSTEM_CONTROL, &value);
+        error = tfa9895_read_reg(amp, TFA9895_SYSTEM_CONTROL, &value);
     }
     if (0 == error) {
         /* DSP must be in control of the amplifier to avoid plops */
-        value |= TFA9887_SYSCTRL_SEL_ENBL_AMP;
-        error = tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, value);
+        value |= TFA9895_SYSCTRL_SEL_ENBL_AMP;
+        error = tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, value);
     }
 
     /* some other registers must be set for optimal amplifier behaviour */
     if (0 == error) {
-        error = tfa9887_write_reg(amp, TFA9887_BAT_PROT, 0x13AB);
+        error = tfa9895_write_reg(amp, TFA9895_BAT_PROT, 0x13AB);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(amp, TFA9887_AUDIO_CONTROL, 0x1F);
+        error = tfa9895_write_reg(amp, TFA9895_AUDIO_CONTROL, 0x1F);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(amp, TFA9887_SPKR_CALIBRATION, 0x3C4E);
+        error = tfa9895_write_reg(amp, TFA9895_SPKR_CALIBRATION, 0x3C4E);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(amp, TFA9887_SYSTEM_CONTROL, 0x24D);
+        error = tfa9895_write_reg(amp, TFA9895_SYSTEM_CONTROL, 0x24D);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(amp, TFA9887_PWM_CONTROL, 0x308);
+        error = tfa9895_write_reg(amp, TFA9895_PWM_CONTROL, 0x308);
     }
     if (0 == error) {
-        error = tfa9887_write_reg(amp, TFA9887_CURRENTSENSE4, 0xE82);
+        error = tfa9895_write_reg(amp, TFA9895_CURRENTSENSE4, 0xE82);
     }
 
     return error;
 }
 
-static int tfa9887_hw_init(struct tfa9887_amp_t *amp, int sample_rate)
+static int tfa9895_hw_init(struct tfa9895_amp_t *amp, int sample_rate)
 {
     int error;
     const char *patch_file, *speaker_file;
     int channel;
-    uint32_t pll_lock_bits = (TFA9887_STATUS_CLKS | TFA9887_STATUS_PLLS);
+    uint32_t pll_lock_bits = (TFA9895_STATUS_CLKS | TFA9895_STATUS_PLLS);
 
     if (!amp) {
         return -ENODEV;
@@ -1034,72 +1034,72 @@ static int tfa9887_hw_init(struct tfa9887_amp_t *amp, int sample_rate)
 
     if (amp->is_right) {
         channel = 1;
-        patch_file = PATCH_TFA9887;
+        patch_file = PATCH_TFA9895;
         speaker_file = SPKR_R;
     } else {
         channel = 0;
-        patch_file = PATCH_TFA9887;
+        patch_file = PATCH_TFA9895;
         speaker_file = SPKR_L;
     }
 
     /* must wait until chip is ready otherwise no init happens */
-    error = tfa9887_wait_ready(amp, TFA9887_STATUS_MTPB, 0);
+    error = tfa9895_wait_ready(amp, TFA9895_STATUS_MTPB, 0);
     if (error != 0) {
-        ALOGE("tfa9887 MTP still busy");
+        ALOGE("tfa9895 MTP still busy");
         goto priv_init_err;
     }
 
     /* do cold boot init */
-    error = tfa9887_startup(amp);
+    error = tfa9895_startup(amp);
     if (error != 0) {
         ALOGE("Unable to cold boot");
         goto priv_init_err;
     }
-    error = htc_init9887(amp);
+    error = htc_init9895(amp);
     if (error != 0) {
         ALOGE("Failed to execute HTC amp init");
         goto priv_init_err;
     }
-    error = tfa9887_set_sample_rate(amp, sample_rate);
+    error = tfa9895_set_sample_rate(amp, sample_rate);
     if (error != 0) {
         ALOGE("Unable to set sample rate");
         goto priv_init_err;
     }
-    error = tfa9887_select_channel(amp, channel);
+    error = tfa9895_select_channel(amp, channel);
     if (error != 0) {
         ALOGE("Unable to select channel");
         goto priv_init_err;
     }
-    error = tfa9887_select_input(amp, 2);
+    error = tfa9895_select_input(amp, 2);
     if (error != 0) {
         ALOGE("Unable to select input");
         goto priv_init_err;
     }
-    error = tfa9887_set_volume(amp, 0.0);
+    error = tfa9895_set_volume(amp, 0.0);
     if (error != 0) {
         ALOGE("Unable to set volume");
         goto priv_init_err;
     }
-    error = tfa9887_power(amp, true);
+    error = tfa9895_power(amp, true);
     if (error != 0) {
         ALOGE("Unable to power up");
         goto priv_init_err;
     }
 
     /* wait for ready */
-    error = tfa9887_wait_ready(amp, pll_lock_bits, pll_lock_bits);
+    error = tfa9895_wait_ready(amp, pll_lock_bits, pll_lock_bits);
     if (error != 0) {
         ALOGE("Failed to lock PLLs");
         goto priv_init_err;
     }
 
     /* load firmware */
-    error = tfa9887_load_patch(amp, patch_file);
+    error = tfa9895_load_patch(amp, patch_file);
     if (error != 0) {
         ALOGE("Unable to load patch data");
         goto priv_init_err;
     }
-    error = tfa9887_load_dsp(amp, speaker_file);
+    error = tfa9895_load_dsp(amp, speaker_file);
     if (error != 0) {
         ALOGE("Unable to load speaker data");
         goto priv_init_err;
@@ -1111,7 +1111,7 @@ priv_init_err:
     return error;
 }
 
-static int tfa9887_set_dsp_mode(struct tfa9887_amp_t *amp, uint32_t mode)
+static int tfa9895_set_dsp_mode(struct tfa9895_amp_t *amp, uint32_t mode)
 {
     int error;
     const struct mode_config_t *config;
@@ -1128,36 +1128,36 @@ static int tfa9887_set_dsp_mode(struct tfa9887_amp_t *amp, uint32_t mode)
         ALOGV("Setting left mode to %d", mode);
     }
 
-    error = tfa9887_load_dsp(amp, config[mode].config);
+    error = tfa9895_load_dsp(amp, config[mode].config);
     if (error != 0) {
         ALOGE("Unable to load config data");
         goto set_dsp_err;
     }
-    error = tfa9887_load_dsp(amp, config[mode].preset);
+    error = tfa9895_load_dsp(amp, config[mode].preset);
     if (error != 0) {
         ALOGE("Unable to load preset data");
         goto set_dsp_err;
     }
-    error = tfa9887_load_dsp(amp, config[mode].eq);
+    error = tfa9895_load_dsp(amp, config[mode].eq);
     if (error != 0) {
         ALOGE("Unable to load EQ data");
         goto set_dsp_err;
     }
 
-    error = tfa9887_load_dsp(amp, config[mode].drc);
+    error = tfa9895_load_dsp(amp, config[mode].drc);
     if (error != 0) {
         ALOGE("Unable to load DRC data");
         goto set_dsp_err;
     }
 
-    error = tfa9887_set_configured(amp);
+    error = tfa9895_set_configured(amp);
     if (error != 0) {
         ALOGE("Unable to set configured");
         goto set_dsp_err;
     }
 
     /* wait for ready */
-    error = tfa9887_wait_ready(amp, TFA9887_STATUS_MTPB, 0);
+    error = tfa9895_wait_ready(amp, TFA9895_STATUS_MTPB, 0);
     if (error != 0) {
         ALOGE("Failed to become ready");
         goto set_dsp_err;
@@ -1170,7 +1170,7 @@ set_dsp_err:
     return error;
 }
 
-static int tfa9887_lock(struct tfa9887_amp_t *amp, bool lock)
+static int tfa9895_lock(struct tfa9895_amp_t *amp, bool lock)
 {
     int rc;
     uint32_t reg_value[2];
@@ -1185,7 +1185,7 @@ static int tfa9887_lock(struct tfa9887_amp_t *amp, bool lock)
 
     reg_value[0] = 1;
     reg_value[1] = lock ? 1 : 0;
-    rc = ioctl(amp->fd, TPA9887_KERNEL_LOCK, &reg_value);
+    rc = ioctl(amp->fd, TPA9895_KERNEL_LOCK, &reg_value);
     if (rc) {
         rc = -errno;
         ALOGE("%s: Failed to lock amplifier: %d\n",
@@ -1196,7 +1196,7 @@ static int tfa9887_lock(struct tfa9887_amp_t *amp, bool lock)
     return rc;
 }
 
-static int tfa9887_enable_dsp(struct tfa9887_amp_t *amp, bool enable)
+static int tfa9895_enable_dsp(struct tfa9895_amp_t *amp, bool enable)
 {
     int rc;
     uint32_t reg_value[2];
@@ -1211,7 +1211,7 @@ static int tfa9887_enable_dsp(struct tfa9887_amp_t *amp, bool enable)
 
     reg_value[0] = 1;
     reg_value[1] = enable ? 1 : 0;
-    rc = ioctl(amp->fd, TPA9887_ENABLE_DSP, &reg_value);
+    rc = ioctl(amp->fd, TPA9895_ENABLE_DSP, &reg_value);
     if (rc) {
         rc = -errno;
         ALOGE("%s: Failed to enable DSP mode: %d\n",
@@ -1225,7 +1225,7 @@ static int tfa9887_enable_dsp(struct tfa9887_amp_t *amp, bool enable)
     return rc;
 }
 
-static int tfa9887_init(struct tfa9887_amp_t *amp, bool is_right)
+static int tfa9895_init(struct tfa9895_amp_t *amp, bool is_right)
 {
     int rc;
 
@@ -1233,16 +1233,16 @@ static int tfa9887_init(struct tfa9887_amp_t *amp, bool is_right)
         return -ENODEV;
     }
 
-    memset(amp, 0, sizeof(struct tfa9887_amp_t));
+    memset(amp, 0, sizeof(struct tfa9895_amp_t));
 
     amp->is_right = is_right;
-    amp->mode = TFA9887_MODE_PLAYBACK;
+    amp->mode = TFA9895_MODE_PLAYBACK;
     amp->initializing = true;
     amp->writing = false;
     pthread_mutex_init(&amp->mutex, NULL);
     pthread_cond_init(&amp->cond, NULL);
 
-    amp->fd = open(amp->is_right ? TFA9887_DEVICE : TFA9887L_DEVICE, O_RDWR);
+    amp->fd = open(amp->is_right ? TFA9895_DEVICE : TFA9895L_DEVICE, O_RDWR);
     if (amp->fd < 0) {
         rc = -errno;
         ALOGE("%s: Failed to open %s amplifier device: %d\n",
@@ -1255,26 +1255,26 @@ static int tfa9887_init(struct tfa9887_amp_t *amp, bool is_right)
 
 /* Public functions */
 
-int tfa9887_open(void)
+int tfa9895_open(void)
 {
     int rc;
     int i;
-    struct tfa9887_amp_t *amp = NULL;
+    struct tfa9895_amp_t *amp = NULL;
 
     if (amps) {
-        ALOGE("%s: TFA9887 already opened\n", __func__);
+        ALOGE("%s: TFA9895 already opened\n", __func__);
         return -EBUSY;
     }
 
-    amps = calloc(AMP_MAX, sizeof(struct tfa9887_amp_t));
+    amps = calloc(AMP_MAX, sizeof(struct tfa9895_amp_t));
     if (!amps) {
-        ALOGE("%s: Failed to allocate TFA9887 amplifier device memory", __func__);
+        ALOGE("%s: Failed to allocate TFA9895 amplifier device memory", __func__);
         return -ENOMEM;
     }
 
     for (i = 0; i < AMP_MAX; i++) {
         amp = &amps[i];
-        rc = tfa9887_init(amp, (i == AMP_RIGHT));
+        rc = tfa9895_init(amp, (i == AMP_RIGHT));
         if (rc) {
             /* Try next amp */
             continue;
@@ -1287,10 +1287,10 @@ int tfa9887_open(void)
         }
         pthread_mutex_unlock(&amp->mutex);
 
-        rc = tfa9887_hw_init(amp, TFA9887_DEFAULT_RATE);
-        rc = tfa9887_set_dsp_mode(amp, amp->mode);
+        rc = tfa9895_hw_init(amp, TFA9895_DEFAULT_RATE);
+        rc = tfa9895_set_dsp_mode(amp, amp->mode);
         if (rc == 0) {
-            rc = tfa9887_enable_dsp(amp, true);
+            rc = tfa9895_enable_dsp(amp, true);
         }
 
         /* Shut down I2S interface */
@@ -1301,14 +1301,14 @@ int tfa9887_open(void)
     return 0;
 }
 
-int tfa9887_set_mode(audio_mode_t mode)
+int tfa9895_set_mode(audio_mode_t mode)
 {
     int rc, i;
     uint32_t dsp_mode;
-    struct tfa9887_amp_t *amp = NULL;
+    struct tfa9895_amp_t *amp = NULL;
 
     if (!amps) {
-        ALOGE("%s: TFA9887 not opened\n", __func__);
+        ALOGE("%s: TFA9895 not opened\n", __func__);
         return -ENODEV;
     }
 
@@ -1320,19 +1320,19 @@ int tfa9887_set_mode(audio_mode_t mode)
             ALOGV("No mode change needed, already mode %d", dsp_mode);
             continue;
         }
-        rc = tfa9887_lock(amp, true);
+        rc = tfa9895_lock(amp, true);
         if (rc) {
             /* Try next amp */
             continue;
         }
-        rc = tfa9887_mute(amp, TFA9887_MUTE_DIGITAL);
-        rc = tfa9887_set_dsp_mode(amp, dsp_mode);
+        rc = tfa9895_mute(amp, TFA9895_MUTE_DIGITAL);
+        rc = tfa9895_set_dsp_mode(amp, dsp_mode);
         if (rc == 0) {
             /* Only count DSP mode switches that were successful */
             amp->mode = dsp_mode;
         }
-        rc = tfa9887_mute(amp, TFA9887_MUTE_OFF);
-        rc = tfa9887_lock(amp, false);
+        rc = tfa9895_mute(amp, TFA9895_MUTE_OFF);
+        rc = tfa9895_lock(amp, false);
     }
 
     ALOGV("%s: Set amplifier audio mode to %d\n", __func__, mode);
@@ -1340,13 +1340,13 @@ int tfa9887_set_mode(audio_mode_t mode)
     return 0;
 }
 
-int tfa9887_close(void)
+int tfa9895_close(void)
 {
     int i;
-    struct tfa9887_amp_t *amp = NULL;
+    struct tfa9895_amp_t *amp = NULL;
 
     if (!amps) {
-        ALOGE("%s: TFA9887 not open!\n", __func__);
+        ALOGE("%s: TFA9895 not open!\n", __func__);
     }
 
     for (i = 0; i < AMP_MAX; i++) {

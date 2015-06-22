@@ -6,7 +6,7 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog libutils libtinyalsa
 
 LOCAL_CFLAGS += \
-	-DPLATFORM_MSM8974
+	-DPLATFORM_MSM8994
 
 LOCAL_C_INCLUDES := \
 	external/tinyalsa/include \
@@ -17,11 +17,11 @@ LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 LOCAL_SRC_FILES := \
-	rt5501.c \
-	tfa9887.c \
+	rt5506.c \
+	tfa9895.c \
 	audio_amplifier.c
 
-LOCAL_MODULE := audio_amplifier.msm8974
+LOCAL_MODULE := audio_amplifier.msm8994
 LOCAL_MODULE_RELATIVE_PATH := hw
 LOCAL_MODULE_TAGS := optional
 
