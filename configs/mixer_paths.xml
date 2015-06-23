@@ -1534,6 +1534,14 @@
         <ctl name="RX1 Digital Volume" value="84" />
     </path>
 
+    <path name="voice-dmic-ef">
+        <path name="dmic-endfire" />
+    </path>
+
+    <path name="voice-speaker-dmic-ef">
+        <path name="speaker-dmic-endfire" />
+    </path>
+
     <path name="handset-mic">
         <ctl name="AIF1_CAP Mixer SLIM TX7" value="1"/>
         <ctl name="SLIM_0_TX Channels" value="One" />
