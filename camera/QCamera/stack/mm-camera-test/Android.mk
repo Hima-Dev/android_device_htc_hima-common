@@ -1,8 +1,7 @@
 OLD_LOCAL_PATH := $(LOCAL_PATH)
-LOCAL_PATH:=$(call my-dir)
+LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
-ifeq ($(TARGET_BOARD_PLATFORM),msm8960)
 LOCAL_CFLAGS:= \
         -DAMSS_VERSION=$(AMSS_VERSION) \
         $(mmcamera_debug_defines) \
@@ -57,6 +56,5 @@ LOCAL_MODULE:= mm-qcamera-app
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_EXECUTABLE)
-endif
 
 LOCAL_PATH := $(OLD_LOCAL_PATH)
