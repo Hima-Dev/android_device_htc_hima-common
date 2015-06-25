@@ -43,12 +43,6 @@ const struct mode_config_t right_mode_configs[TFA9895_MODE_MAX] = {
         .eq = EQ_PLAYBACK_R,
         .drc = DRC_PLAYBACK_R
     },
-    {   /* Ring */
-        .config = CONFIG_TFA9895,
-        .preset = PRESET_RING_R,
-        .eq = EQ_RING_R,
-        .drc = DRC_RING_R
-    },
     {   /* Voice */
         .config = CONFIG_TFA9895,
         .preset = PRESET_VOICE_R,
@@ -63,12 +57,6 @@ const struct mode_config_t left_mode_configs[TFA9895_MODE_MAX] = {
         .preset = PRESET_PLAYBACK_L,
         .eq = EQ_PLAYBACK_L,
         .drc = DRC_PLAYBACK_L
-    },
-    {   /* Ring */
-        .config = CONFIG_TFA9895,
-        .preset = PRESET_RING_L,
-        .eq = EQ_RING_L,
-        .drc = DRC_RING_L
     },
     {   /* Voice */
         .config = CONFIG_TFA9895,
@@ -208,11 +196,10 @@ static int get_file_info(const char *file_name, bool get_type)
 static uint32_t get_mode(audio_mode_t mode)
 {
     switch (mode) {
-        case AUDIO_MODE_RINGTONE:
-            return TFA9895_MODE_RING;
         case AUDIO_MODE_IN_CALL:
         case AUDIO_MODE_IN_COMMUNICATION:
             return TFA9895_MODE_VOICE;
+        case AUDIO_MODE_RINGTONE:
         case AUDIO_MODE_NORMAL:
         default:
             return TFA9895_MODE_PLAYBACK;
@@ -274,7 +261,7 @@ static int tfa9895_read_reg(struct tfa9895_amp_t *amp, uint8_t reg,
     }
 
     reg_val[0] = 2;
-    reg_val[1] = (unsigned int) &buf;
+    reg_val[1] = (unsigned long) &buf;
     /* unsure why the first byte is skipped */
     buf[0] = 0;
     buf[1] = reg;
@@ -284,7 +271,7 @@ static int tfa9895_read_reg(struct tfa9895_amp_t *amp, uint8_t reg,
     }
 
     reg_val[0] = 2;
-    reg_val[1] = (unsigned int) &buf;
+    reg_val[1] = (unsigned long) &buf;
     if ((ret = ioctl(amp->fd, TPA9895_READ_CONFIG, &reg_val)) != 0) {
         ALOGE("ioctl %d failed, ret = %d", TPA9895_READ_CONFIG, ret);
         goto read_reg_err;
@@ -309,7 +296,7 @@ static int tfa9895_write_reg(struct tfa9895_amp_t *amp, uint8_t reg,
     }
 
     reg_val[0] = 4;
-    reg_val[1] = (unsigned int) &buf;
+    reg_val[1] = (unsigned long) &buf;
     /* unsure why the first byte is skipped */
     buf[0] = 0;
     buf[1] = reg;
@@ -338,7 +325,7 @@ static int tfa9895_read(struct tfa9895_amp_t *amp, int addr, uint8_t *buf,
     }
 
     reg_val[0] = 2;
-    reg_val[1] = (unsigned int) &reg_buf;
+    reg_val[1] = (unsigned long) &reg_buf;
     /* unsure why the first byte is skipped */
     reg_buf[0] = 0;
     reg_buf[1] = (0xFF & addr);
@@ -348,7 +335,7 @@ static int tfa9895_read(struct tfa9895_amp_t *amp, int addr, uint8_t *buf,
     }
 
     reg_val[0] = len;
-    reg_val[1] = (unsigned int) &kernel_buf;
+    reg_val[1] = (unsigned long) &kernel_buf;
     if ((ret = ioctl(amp->fd, TPA9895_READ_CONFIG, &reg_val)) != 0) {
         ALOGE("ioctl %d failed, ret = %d", TPA9895_READ_CONFIG, ret);
         goto read_err;
@@ -372,7 +359,7 @@ static int tfa9895_write(struct tfa9895_amp_t *amp, int addr,
     }
 
     reg_val[0] = len + 2;
-    reg_val[1] = (unsigned int) &ioctl_buf;
+    reg_val[1] = (unsigned long) &ioctl_buf;
     /* unsure why the first byte is skipped */
     ioctl_buf[0] = 0;
     ioctl_buf[1] = (0xFF & addr);
