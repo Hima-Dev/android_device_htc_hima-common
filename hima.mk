@@ -242,6 +242,10 @@ PRODUCT_BOOT_JARS += \
 PRODUCT_PACKAGES += \
     power.msm8994
 
+# DeviceHandler
+PRODUCT_PACKAGES += \
+    DeviceHandler
+
 # USB
 PRODUCT_PACKAGES += \
     com.android.future.usb.accessory
