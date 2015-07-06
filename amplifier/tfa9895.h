@@ -41,21 +41,29 @@
 
 #define CONFIG_PLAYBACK_R "/system/etc/tfa/playbackwoofer.preset"
 #define CONFIG_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.preset"
+#define CONFIG_RING_R "/system/etc/tfa/ring.config"
+#define CONFIG_RING_L "/system/etc/tfa/ring_l.config"
 #define CONFIG_VOICE_R "/system/etc/tfa/voice.config"
 #define CONFIG_VOICE_L "/system/etc/tfa/voice_l.config"
 
 #define PRESET_PLAYBACK_R "/system/etc/tfa/playback.preset"
 #define PRESET_PLAYBACK_L "/system/etc/tfa/playback_l.preset"
+#define PRESET_RING_R "/system/etc/tfa/ring.preset"
+#define PRESET_RING_L "/system/etc/tfa/ring_l.preset"
 #define PRESET_VOICE_R "/system/etc/tfa/voice.preset"
 #define PRESET_VOICE_L "/system/etc/tfa/voice_l.preset"
 
 #define EQ_PLAYBACK_R "/system/etc/tfa/playbackwoofer.eq"
 #define EQ_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.eq"
+#define EQ_RING_R "/system/etc/tfa/ring.eq"
+#define EQ_RING_L "/system/etc/tfa/ring_l.eq"
 #define EQ_VOICE_R "/system/etc/tfa/voice.eq"
 #define EQ_VOICE_L "/system/etc/tfa/voice_l.eq"
 
 #define DRC_PLAYBACK_R "/system/etc/tfa/playbackwoofer.drc"
 #define DRC_PLAYBACK_L "/system/etc/tfa/playbackwoofer_l.drc"
+#define DRC_RING_R "/system/etc/tfa/ring.drc"
+#define DRC_RING_L "/system/etc/tfa/ring_l.drc"
 #define DRC_VOICE_R "/system/etc/tfa/voice.drc"
 #define DRC_VOICE_L "/system/etc/tfa/voice_l.drc"
 
