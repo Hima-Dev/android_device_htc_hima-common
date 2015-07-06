@@ -17,7 +17,7 @@
 #ifndef _RT5506_H_
 #define _RT5506_H_
 
-#define RT5506_DEVICE "/dev/rt5506"
+#define RT5506_DEVICE "/dev/rt5501"
 #define RT5506_MAX_REG_DATA 15
 
 struct rt5506_reg_data {

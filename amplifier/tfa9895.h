@@ -17,8 +17,8 @@
 #ifndef _TFA9895_H_
 #define _TFA9895_H_
 
-#define TFA9895_DEVICE "/dev/tfa9895"
-#define TFA9895L_DEVICE "/dev/tfa9895l"
+#define TFA9895_DEVICE "/dev/tfa9887"
+#define TFA9895L_DEVICE "/dev/tfa9887l"
 
 #define TPA9895_IOCTL_MAGIC 'a'
 #define TPA9895_WRITE_CONFIG	_IOW(TPA9895_IOCTL_MAGIC, 0x01, unsigned int)

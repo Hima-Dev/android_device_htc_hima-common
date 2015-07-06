@@ -8,8 +8,10 @@
 /sys/devices/virtual/graphics/fb0/rgb			                        u:object_r:display_sysfs:s0
 
 # rt5506 Audio device
-/dev/rt5506                     u:object_r:audio_device:s0
+# Don't ask why HTC is still using /dev/rt5501
+/dev/rt5501                     u:object_r:audio_device:s0
 
 # Speakers
-/dev/tfa9895                    u:object_r:audio_device:s0
-/dev/tfa9895l                   u:object_r:audio_device:s0
+# Don't ask why they're using 9887 here as well...
+/dev/tfa9887                    u:object_r:audio_device:s0
+/dev/tfa9887l                   u:object_r:audio_device:s0
