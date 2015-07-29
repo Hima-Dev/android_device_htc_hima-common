@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -63,6 +63,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_AF, metadata);
         case CAM_INTF_META_CHROMATIX_LITE_ASD:
             return POINTER_OF_META(CAM_INTF_META_CHROMATIX_LITE_ASD, metadata);
+        case CAM_INTF_BUF_DIVERT_INFO:
+            return POINTER_OF_META(CAM_INTF_BUF_DIVERT_INFO, metadata);
         case CAM_INTF_META_FRAME_NUMBER_VALID:
             return POINTER_OF_META(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
         case CAM_INTF_META_URGENT_FRAME_NUMBER_VALID:
@@ -89,6 +91,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_META_AEC_STATE, metadata);
         case CAM_INTF_PARM_FOCUS_MODE:
             return POINTER_OF_META(CAM_INTF_PARM_FOCUS_MODE, metadata);
+        case CAM_INTF_PARM_MANUAL_FOCUS_POS:
+            return POINTER_OF_META(CAM_INTF_PARM_MANUAL_FOCUS_POS, metadata);
         case CAM_INTF_META_AF_ROI:
             return POINTER_OF_META(CAM_INTF_META_AF_ROI, metadata);
         case CAM_INTF_META_AF_STATE:
@@ -207,6 +211,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_BRIGHTNESS, metadata);
         case CAM_INTF_PARM_ISO:
             return POINTER_OF_META(CAM_INTF_PARM_ISO, metadata);
+        case CAM_INTF_PARM_EXPOSURE_TIME:
+            return POINTER_OF_META(CAM_INTF_PARM_EXPOSURE_TIME, metadata);
         case CAM_INTF_PARM_ZOOM:
             return POINTER_OF_META(CAM_INTF_PARM_ZOOM, metadata);
         case CAM_INTF_PARM_ROLLOFF:
@@ -275,6 +281,8 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_RAW_DIMENSION, metadata);
         case CAM_INTF_PARM_TINTLESS:
             return POINTER_OF_META(CAM_INTF_PARM_TINTLESS, metadata);
+        case CAM_INTF_PARM_WB_MANUAL:
+            return POINTER_OF_META(CAM_INTF_PARM_WB_MANUAL, metadata);
         case CAM_INTF_PARM_EZTUNE_CMD:
             return POINTER_OF_META(CAM_INTF_PARM_EZTUNE_CMD, metadata);
         case CAM_INTF_PARM_INT_EVT:
@@ -313,6 +321,10 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_META_SHADING_STRENGTH, metadata);
         case CAM_INTF_META_TONEMAP_MODE:
             return POINTER_OF_META(CAM_INTF_META_TONEMAP_MODE, metadata);
+        case CAM_INTF_META_AWB_INFO:
+            return POINTER_OF_META(CAM_INTF_META_AWB_INFO, metadata);
+        case CAM_INTF_META_FOCUS_POSITION:
+            return POINTER_OF_META(CAM_INTF_META_FOCUS_POSITION, metadata);
         case CAM_INTF_META_STREAM_ID:
             return POINTER_OF_META(CAM_INTF_META_STREAM_ID, metadata);
         case CAM_INTF_PARM_STATS_DEBUG_MASK:
@@ -351,6 +363,10 @@ void *get_pointer_of(cam_intf_parm_type_t meta_id,
             return POINTER_OF_META(CAM_INTF_PARM_CDS_MODE, metadata);
         case CAM_INTF_PARM_ROTATION:
           return POINTER_OF_META(CAM_INTF_PARM_ROTATION, metadata);
+        case CAM_INTF_PARM_TONE_MAP_MODE:
+          return POINTER_OF_META(CAM_INTF_PARM_TONE_MAP_MODE, metadata);
+        case CAM_INTF_META_IMGLIB:
+          return POINTER_OF_META(CAM_INTF_META_IMGLIB, metadata);
         default:
             return NULL;
     }
@@ -390,6 +406,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_AF, metadata);
         case CAM_INTF_META_CHROMATIX_LITE_ASD:
             return SIZE_OF_PARAM(CAM_INTF_META_CHROMATIX_LITE_ASD, metadata);
+        case CAM_INTF_BUF_DIVERT_INFO:
+            return SIZE_OF_PARAM(CAM_INTF_BUF_DIVERT_INFO, metadata);
         case CAM_INTF_META_FRAME_NUMBER_VALID:
             return SIZE_OF_PARAM(CAM_INTF_META_FRAME_NUMBER_VALID, metadata);
         case CAM_INTF_META_URGENT_FRAME_NUMBER_VALID:
@@ -416,6 +434,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_META_AEC_STATE, metadata);
         case CAM_INTF_PARM_FOCUS_MODE:
             return SIZE_OF_PARAM(CAM_INTF_PARM_FOCUS_MODE, metadata);
+        case CAM_INTF_PARM_MANUAL_FOCUS_POS:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_MANUAL_FOCUS_POS, metadata);
         case CAM_INTF_META_AF_ROI:
             return SIZE_OF_PARAM(CAM_INTF_META_AF_ROI, metadata);
         case CAM_INTF_META_AF_STATE:
@@ -534,6 +554,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_BRIGHTNESS, metadata);
         case CAM_INTF_PARM_ISO:
             return SIZE_OF_PARAM(CAM_INTF_PARM_ISO, metadata);
+        case CAM_INTF_PARM_EXPOSURE_TIME:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_EXPOSURE_TIME, metadata);
         case CAM_INTF_PARM_ZOOM:
             return SIZE_OF_PARAM(CAM_INTF_PARM_ZOOM, metadata);
         case CAM_INTF_PARM_ROLLOFF:
@@ -602,6 +624,8 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_RAW_DIMENSION, metadata);
         case CAM_INTF_PARM_TINTLESS:
             return SIZE_OF_PARAM(CAM_INTF_PARM_TINTLESS, metadata);
+        case CAM_INTF_PARM_WB_MANUAL:
+            return SIZE_OF_PARAM(CAM_INTF_PARM_WB_MANUAL, metadata);
         case CAM_INTF_PARM_EZTUNE_CMD:
             return SIZE_OF_PARAM(CAM_INTF_PARM_EZTUNE_CMD, metadata);
         case CAM_INTF_PARM_INT_EVT:
@@ -640,6 +664,10 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_META_SHADING_STRENGTH, metadata);
         case CAM_INTF_META_TONEMAP_MODE:
             return SIZE_OF_PARAM(CAM_INTF_META_TONEMAP_MODE, metadata);
+        case CAM_INTF_META_AWB_INFO:
+            return SIZE_OF_PARAM(CAM_INTF_META_AWB_INFO, metadata);
+        case CAM_INTF_META_FOCUS_POSITION:
+            return SIZE_OF_PARAM(CAM_INTF_META_FOCUS_POSITION, metadata);
         case CAM_INTF_META_STREAM_ID:
             return SIZE_OF_PARAM(CAM_INTF_META_STREAM_ID, metadata);
         case CAM_INTF_PARM_STATS_DEBUG_MASK:
@@ -678,6 +706,10 @@ uint32_t get_size_of(cam_intf_parm_type_t param_id)
             return SIZE_OF_PARAM(CAM_INTF_PARM_CDS_MODE, metadata);
         case CAM_INTF_PARM_ROTATION:
           return SIZE_OF_PARAM(CAM_INTF_PARM_ROTATION, metadata);
+        case CAM_INTF_PARM_TONE_MAP_MODE:
+          return SIZE_OF_PARAM(CAM_INTF_PARM_TONE_MAP_MODE, metadata);
+        case CAM_INTF_META_IMGLIB:
+          return SIZE_OF_PARAM(CAM_INTF_META_IMGLIB, metadata);
         default:
             return 0;
     }

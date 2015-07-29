@@ -1287,6 +1287,24 @@ int32_t QCameraStateMachine::procEvtPreviewingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 rc = m_parent->mParameters.updateFlashMode(internal_evt->led_data);
                 break;
+            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
+                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
+                rc = m_parent->processAEInfo(internal_evt->ae_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
+                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
+                break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
                             __func__, internal_evt->evt_type, m_state);
@@ -1426,6 +1444,24 @@ int32_t QCameraStateMachine::procEvtPrepareSnapshotState(qcamera_sm_evt_enum_t e
                 break;
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+                break;
+            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
+                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
+                rc = m_parent->processAEInfo(internal_evt->ae_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
+                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 ALOGE("%s: Invalid internal event %d in state(%d)",
@@ -1750,6 +1786,24 @@ int32_t QCameraStateMachine::procEvtPicTakingState(qcamera_sm_evt_enum_t evt,
                 break;
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+                break;
+            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
+                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
+                rc = m_parent->processAEInfo(internal_evt->ae_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
+                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 break;
@@ -2147,6 +2201,24 @@ int32_t QCameraStateMachine::procEvtRecordingState(qcamera_sm_evt_enum_t evt,
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
                 break;
+            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
+                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
+                rc = m_parent->processAEInfo(internal_evt->ae_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
+                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
+                break;
             default:
                 break;
             }
@@ -2483,6 +2555,24 @@ int32_t QCameraStateMachine::procEvtVideoPicTakingState(qcamera_sm_evt_enum_t ev
                 break;
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+                break;
+            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
+                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
+                rc = m_parent->processAEInfo(internal_evt->ae_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
+                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 break;
@@ -2922,6 +3012,24 @@ int32_t QCameraStateMachine::procEvtPreviewPicTakingState(qcamera_sm_evt_enum_t 
                 break;
             case QCAMERA_INTERNAL_EVT_LED_MODE_OVERRIDE:
                 ALOGE("%s: Error!! cannot handle evt(%d) in state(%d)", __func__, evt, m_state);
+                break;
+            case QCAMERA_INTERNAL_EVT_AWB_UPDATE:
+                rc = m_parent->transAwbMetaToParams(internal_evt->awb_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_AE_UPDATE:
+                rc = m_parent->processAEInfo(internal_evt->ae_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_FOCUS_POS_UPDATE:
+                rc = m_parent->processFocusPositionInfo(internal_evt->focus_pos);
+                break;
+            case QCAMERA_INTERNAL_EVT_HDR_UPDATE:
+                rc = m_parent->processHDRData(internal_evt->hdr_data);
+                break;
+            case QCAMERA_INTERNAL_EVT_RETRO_AEC_UNLOCK:
+                rc = m_parent->processRetroAECUnlock();
+                break;
+            case QCAMERA_INTERNAL_EVT_ZSL_CAPTURE_DONE:
+                rc = m_parent->processZSLCaptureDone();
                 break;
             default:
                 break;
