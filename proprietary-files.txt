@@ -20,6 +20,7 @@ lib/libhtcmfg.so
 lib/libhtc_rilhook.so
 lib/libril.so
 lib/librmnetctl.so
+lib/libscaler.so
 vendor/lib64/libconfigdb.so
 vendor/lib64/libdiag.so
 vendor/lib64/lib-dplmedia.so
