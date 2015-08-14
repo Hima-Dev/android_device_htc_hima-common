@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -96,21 +96,9 @@ typedef struct{
     size_t supported_white_balances_cnt;
     cam_wb_mode_type supported_white_balances[CAM_WB_MODE_MAX];
 
-    /* supported manual wb cct */
-    int32_t min_wb_cct;
-    int32_t max_wb_cct;
-
-    /* supported manual wb rgb gains */
-    float min_wb_gain;
-    float max_wb_gain;
-
     /* supported focus modes */
     size_t supported_focus_modes_cnt;
     cam_focus_mode_type supported_focus_modes[CAM_FOCUS_MODE_MAX];
-
-    /* supported manual focus position */
-    float min_focus_pos[CAM_MANUAL_FOCUS_MODE_MAX];
-    float max_focus_pos[CAM_MANUAL_FOCUS_MODE_MAX];
 
     int32_t exposure_compensation_min;       /* min value of exposure compensation index */
     int32_t exposure_compensation_max;       /* max value of exposure compensation index */
@@ -322,10 +310,6 @@ typedef struct{
     cam_af_bracketing_t  refocus_af_bracketing_need;
     /* opti Zoom info */
     cam_opti_zoom_t      opti_zoom_settings_need;
-    /* still more info */
-    cam_still_more_t  stillmore_settings_need;
-    /* chroma flash info */
-    cam_chroma_flash_t chroma_flash_settings_need;
 
     cam_rational_type_t forward_matrix[3][3];
     cam_rational_type_t color_transform[3][3];
@@ -371,7 +355,7 @@ typedef struct{
     /* Max size supported by ISP viewfinder path */
     cam_dimension_t max_viewfinder_size;
 
-    /* Analysis recommended size */
+    /*Analysis recommended size*/
     cam_dimension_t analysis_recommended_res;
 
     /* This is set to 'true' if sensor cannot guarantee per frame control */
@@ -379,16 +363,13 @@ typedef struct{
     /* control is supported */
     uint8_t no_per_frame_control_support;
 
-    /* EIS information */
+    /*EIS information*/
     uint8_t supported_is_types_cnt;
     uint32_t supported_is_types[IS_TYPE_MAX];
     /*for each type, specify the margin needed. Margin will be
       the decimal representation of a percentage
-      ex: 10% margin = 0.1 */
+      ex: 10% margin = 0.1*/
     float supported_is_type_margins[IS_TYPE_MAX];
-
-    /* Max cpp batch size */
-    uint8_t max_batch_bufs_supported;
 } cam_capability_t;
 
 typedef enum {
@@ -465,14 +446,9 @@ typedef struct {
 
     /* streaming type */
     cam_streaming_mode_t streaming_mode;
-
     /* num of frames needs to be generated.
      * only valid when streaming_mode = CAM_STREAMING_MODE_BURST */
     uint8_t num_of_burst;
-
-    /* num of frames in one batch.
-     * only valid when streaming_mode = CAM_STREAMING_MODE_BATCH */
-    cam_stream_user_buf_info_t user_buf_info;
 
     /* stream specific pp config */
     cam_pp_feature_config_t pp_config;
@@ -486,7 +462,6 @@ typedef struct {
 
     /* Image Stabilization type */
     cam_is_type_t is_type;
-
     /* Signifies Secure stream mode */
     cam_stream_secure_t is_secure;
 
@@ -504,64 +479,17 @@ typedef struct {
         DATATYPE member_variable_##PARAM_ID[ COUNT ]
 
 #define POINTER_OF_META(META_ID, TABLE_PTR) \
-        ((NULL != TABLE_PTR) ? \
-            (&TABLE_PTR->data.member_variable_##META_ID[ 0 ]) : (NULL))
+        &TABLE_PTR->data.member_variable_##META_ID
+
+#define POINTER_OF_PARAM POINTER_OF_META
+
+#define IS_META_AVAILABLE(META_ID, TABLE_PTR) \
+        TABLE_PTR->is_valid[META_ID]
+
+#define IS_PARAM_AVAILABLE IS_META_AVAILABLE
 
 #define SIZE_OF_PARAM(META_ID, TABLE_PTR) \
-        sizeof(TABLE_PTR->data.member_variable_##META_ID)
-
-#define IF_META_AVAILABLE(META_TYPE, META_PTR_NAME, META_ID, TABLE_PTR) \
-        META_TYPE *META_PTR_NAME = \
-        (((NULL != TABLE_PTR) && (TABLE_PTR->is_valid[META_ID])) ? \
-            (&TABLE_PTR->data.member_variable_##META_ID[ 0 ]) : \
-            (NULL)); \
-        if (NULL != META_PTR_NAME) \
-
-#define ADD_SET_PARAM_ENTRY_TO_BATCH(TABLE_PTR, META_ID, DATA) \
-    ((NULL != TABLE_PTR) ? \
-    ((TABLE_PTR->data.member_variable_##META_ID[ 0 ] = DATA), \
-    (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
-    ((ALOGE("%s: %d, Unable to set metadata TABLE_PTR:%p META_ID:%d", \
-    __func__, __LINE__, TABLE_PTR, META_ID)), (-1))) \
-
-#define ADD_SET_PARAM_ARRAY_TO_BATCH(TABLE_PTR, META_ID, PDATA, COUNT, RCOUNT) \
-{ \
-    if ((NULL != TABLE_PTR) && \
-            (0 < COUNT) && \
-            ((sizeof(TABLE_PTR->data.member_variable_##META_ID) / \
-            sizeof(TABLE_PTR->data.member_variable_##META_ID[ 0 ])) \
-            >= COUNT))  { \
-        for (size_t _i = 0; _i < COUNT ; _i++) { \
-            TABLE_PTR->data.member_variable_##META_ID[ _i ] = PDATA [ _i ]; \
-        } \
-        TABLE_PTR->is_valid[META_ID] = 1; \
-        RCOUNT = COUNT; \
-    } else { \
-        ALOGE("%s: %d, Unable to set metadata TABLE_PTR:%p META_ID:%d COUNT:%zu", \
-                __func__, __LINE__, TABLE_PTR, META_ID, COUNT); \
-        RCOUNT = 0; \
-    } \
-}
-
-#define ADD_GET_PARAM_ENTRY_TO_BATCH(TABLE_PTR, META_ID) \
-{ \
-    if (NULL != TABLE_PTR) { \
-        TABLE_PTR->is_reqd[META_ID] = 1; \
-    } else { \
-        ALOGE("%s: %d, Unable to get metadata TABLE_PTR:%p META_ID:%d", \
-                __func__, __LINE__, TABLE_PTR, META_ID); \
-    } \
-}
-
-#define READ_PARAM_ENTRY(TABLE_PTR, META_ID, DATA) \
-{ \
-    if (NULL != TABLE_PTR) { \
-        DATA = TABLE_PTR->data.member_variable_##META_ID[ 0 ]; \
-    } else { \
-        ALOGE("%s: %d, Unable to read metadata TABLE_PTR:%p META_ID:%d", \
-                __func__, __LINE__, TABLE_PTR, META_ID); \
-    } \
-}
+         sizeof(TABLE_PTR->data.member_variable_##META_ID)
 
 typedef struct {
 /**************************************************************************************
@@ -580,15 +508,12 @@ typedef struct {
     INCLUDE(CAM_INTF_META_ASD_HDR_SCENE_DATA,           cam_asd_hdr_scene_data_t,       1);
     INCLUDE(CAM_INTF_META_ASD_SCENE_TYPE,               int32_t,                        1);
     INCLUDE(CAM_INTF_META_CURRENT_SCENE,                cam_scene_mode_type,            1);
-    INCLUDE(CAM_INTF_META_AWB_INFO,                     cam_awb_params_t,               1);
-    INCLUDE(CAM_INTF_META_FOCUS_POSITION,               cam_focus_pos_info_t,           1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_ISP,           cam_chromatix_lite_isp_t,       1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_PP,            cam_chromatix_lite_pp_t,        1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_AE,            cam_chromatix_lite_ae_stats_t,  1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_AWB,           cam_chromatix_lite_awb_stats_t, 1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_AF,            cam_chromatix_lite_af_stats_t,  1);
     INCLUDE(CAM_INTF_META_CHROMATIX_LITE_ASD,           cam_chromatix_lite_asd_stats_t, 1);
-    INCLUDE(CAM_INTF_BUF_DIVERT_INFO,                   cam_buf_divert_info_t,          1);
 
     /* Specific to HAL3 */
     INCLUDE(CAM_INTF_META_FRAME_NUMBER_VALID,           int32_t,                     1);
@@ -604,7 +529,6 @@ typedef struct {
     INCLUDE(CAM_INTF_META_AEC_ROI,                      cam_area_t,                  1);
     INCLUDE(CAM_INTF_META_AEC_STATE,                    uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_FOCUS_MODE,                   uint32_t,                    1);
-    INCLUDE(CAM_INTF_PARM_MANUAL_FOCUS_POS,             cam_manual_focus_parm_t,     1);
     INCLUDE(CAM_INTF_META_AF_ROI,                       cam_area_t,                  1);
     INCLUDE(CAM_INTF_META_AF_STATE,                     uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_WHITE_BALANCE,                int32_t,                     1);
@@ -678,7 +602,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_SATURATION,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_BRIGHTNESS,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ISO,                          int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_EXPOSURE_TIME,                uint64_t,                    1);
     INCLUDE(CAM_INTF_PARM_ZOOM,                         int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_ROLLOFF,                      int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_MODE,                         int32_t,                     1);
@@ -702,7 +625,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HDR_NEED_1X,                  int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_LOCK_CAF,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_VIDEO_HDR,                    int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_SENSOR_HDR,                   int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_VT,                           int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_GET_CHROMATIX,                tune_chromatix_t,            1);
     INCLUDE(CAM_INTF_PARM_SET_RELOAD_CHROMATIX,         tune_chromatix_t,            1);
@@ -714,7 +636,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_MAX_DIMENSION,                cam_dimension_t,             1);
     INCLUDE(CAM_INTF_PARM_RAW_DIMENSION,                cam_dimension_t,             1);
     INCLUDE(CAM_INTF_PARM_TINTLESS,                     int32_t,                     1);
-    INCLUDE(CAM_INTF_PARM_WB_MANUAL,                    cam_manual_wb_parm_t,        1);
     INCLUDE(CAM_INTF_PARM_CDS_MODE,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_EZTUNE_CMD,                   cam_eztune_cmd_data_t,       1);
     INCLUDE(CAM_INTF_PARM_INT_EVT,                      cam_int_evt_params_t,        1);
@@ -723,7 +644,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_RETRO_BURST_NUM,              uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_BURST_LED_ON_PERIOD,          uint32_t,                    1);
     INCLUDE(CAM_INTF_PARM_LONGSHOT_ENABLE,              int8_t,                      1);
-    INCLUDE(CAM_INTF_PARM_TONE_MAP_MODE,                uint32_t,                    1);
 
     /* HAL3 specific */
     INCLUDE(CAM_INTF_META_STREAM_INFO,                  cam_stream_size_info_t,      1);
@@ -744,7 +664,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_FOCUS_BRACKETING,             cam_af_bracketing_t,         1);
     INCLUDE(CAM_INTF_PARM_FLASH_BRACKETING,             cam_flash_bracketing_t,      1);
     INCLUDE(CAM_INTF_META_JPEG_GPS_COORDINATES,         double,                      3);
-    INCLUDE(CAM_INTF_META_JPEG_GPS_PROC_METHODS,        uint8_t,                     GPS_PROCESSING_METHOD_SIZE);
+    INCLUDE(CAM_INTF_META_JPEG_GPS_PROC_METHODS,        uint32_t,                    GPS_PROCESSING_METHOD_SIZE_IN_WORD);
     INCLUDE(CAM_INTF_META_JPEG_GPS_TIMESTAMP,           int64_t,                     1);
     INCLUDE(CAM_INTF_META_JPEG_ORIENTATION,             int32_t,                     1);
     INCLUDE(CAM_INTF_META_JPEG_QUALITY,                 uint32_t,                    1);
@@ -756,9 +676,9 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_CAC,                          cam_aberration_mode_t,       1);
     INCLUDE(CAM_INTF_META_NEUTRAL_COL_POINT,            cam_neutral_col_point_t,     1);
     INCLUDE(CAM_INTF_PARM_ROTATION,                     cam_rotation_info_t,         1);
-    INCLUDE(CAM_INTF_META_IMGLIB,                       cam_intf_meta_imglib_t,      1);
-    INCLUDE(CAM_INTF_PARM_CAPTURE_FRAME_CONFIG,         cam_capture_frame_config_t,  1);
-} metadata_data_t;
+} parm_data_t;
+
+typedef parm_data_t metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
  * or removed from this structure */
@@ -801,6 +721,11 @@ typedef metadata_buffer_t parm_buffer_t;
 #ifdef  __cplusplus
 extern "C" {
 #endif
+
+void *get_pointer_of(cam_intf_parm_type_t meta_id,
+        const metadata_buffer_t* metadata);
+
+uint32_t get_size_of(cam_intf_parm_type_t param_id);
 
 /* Update this inline function when a new is_xxx_valid is added to
  * or removed from metadata_buffer_t */

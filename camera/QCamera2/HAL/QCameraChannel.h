@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundataion. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundataion. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -64,7 +64,7 @@ public:
     int32_t config();
     QCameraStream *getStreamByHandle(uint32_t streamHandle);
     uint32_t getMyHandle() const {return m_handle;};
-    uint32_t getNumOfStreams() const {return (uint32_t) mStreams.size();};
+    uint32_t getNumOfStreams() const {return mStreams.size();};
     QCameraStream *getStreamByIndex(uint32_t index);
     QCameraStream *getStreamByServerID(uint32_t serverID);
     int32_t UpdateStreamBasedParameters(QCameraParameters &param);
@@ -93,8 +93,7 @@ public:
     int32_t takePicture(uint8_t num_of_snapshot, uint8_t num_of_retro_snapshot);
     int32_t cancelPicture();
     int32_t stopAdvancedCapture(mm_camera_advanced_capture_t type);
-    int32_t startAdvancedCapture(mm_camera_advanced_capture_t type,
-            cam_capture_frame_config_t *config = NULL);
+    int32_t startAdvancedCapture(mm_camera_advanced_capture_t type);
     int32_t flushSuperbuffer(uint32_t frame_idx);
 };
 
@@ -129,13 +128,13 @@ public:
     // online reprocess
     int32_t doReprocess(mm_camera_super_buf_t *frame,
             QCameraParameters &param, QCameraStream *pMetaStream,
-            uint8_t meta_buf_index, uint32_t rotation, int32_t device_rotation);
+            uint8_t meta_buf_index, int32_t rotation);
 
     // offline reprocess
     int32_t doReprocess(int buf_fd, size_t buf_length, int32_t &ret_val);
 
     int32_t doReprocessOffline(mm_camera_super_buf_t *frame, QCameraParameters &param,
-             mm_camera_buf_def_t *meta_buf, uint32_t rotation, int32_t device_rotation);
+             mm_camera_buf_def_t *meta_buf, int32_t rotation);
 
     int32_t stop();
     QCameraChannel *getSrcChannel(){return m_pSrcChannel;};

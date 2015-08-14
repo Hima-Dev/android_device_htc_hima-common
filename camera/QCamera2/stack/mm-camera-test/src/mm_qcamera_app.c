@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -249,14 +249,14 @@ void mm_app_dump_frame(mm_camera_buf_def_t *frame,
         if (file_fd < 0) {
             CDBG_ERROR("%s: cannot open file %s \n", __func__, file_name);
         } else {
-            for (i = 0; i < frame->planes_buf.num_planes; i++) {
+            for (i = 0; i < frame->num_planes; i++) {
                 CDBG("%s: saving file from address: %p, data offset: %d, "
                      "length: %d \n", __func__, frame->buffer,
-                    frame->planes_buf.planes[i].data_offset, frame->planes_buf.planes[i].length);
+                    frame->planes[i].data_offset, frame->planes[i].length);
                 write(file_fd,
                       (uint8_t *)frame->buffer + offset,
-                      frame->planes_buf.planes[i].length);
-                offset += (int)frame->planes_buf.planes[i].length;
+                      frame->planes[i].length);
+                offset += (int)frame->planes[i].length;
             }
 
             close(file_fd);
@@ -306,7 +306,7 @@ int mm_app_alloc_bufs(mm_camera_app_buf_t* app_bufs,
         mm_app_allocate_ion_memory(&app_bufs[i], ion_type);
 
         app_bufs[i].buf.buf_idx = i;
-        app_bufs[i].buf.planes_buf.num_planes = (int8_t)frame_offset_info->num_planes;
+        app_bufs[i].buf.num_planes = (int8_t)frame_offset_info->num_planes;
         app_bufs[i].buf.fd = app_bufs[i].mem_info.fd;
         app_bufs[i].buf.frame_len = app_bufs[i].mem_info.size;
         app_bufs[i].buf.buffer = app_bufs[i].mem_info.data;
@@ -314,19 +314,19 @@ int mm_app_alloc_bufs(mm_camera_app_buf_t* app_bufs,
 
         /* Plane 0 needs to be set seperately. Set other planes
              * in a loop. */
-        app_bufs[i].buf.planes_buf.planes[0].length = frame_offset_info->mp[0].len;
-        app_bufs[i].buf.planes_buf.planes[0].m.userptr =
+        app_bufs[i].buf.planes[0].length = frame_offset_info->mp[0].len;
+        app_bufs[i].buf.planes[0].m.userptr =
             (long unsigned int)app_bufs[i].buf.fd;
-        app_bufs[i].buf.planes_buf.planes[0].data_offset = frame_offset_info->mp[0].offset;
-        app_bufs[i].buf.planes_buf.planes[0].reserved[0] = 0;
+        app_bufs[i].buf.planes[0].data_offset = frame_offset_info->mp[0].offset;
+        app_bufs[i].buf.planes[0].reserved[0] = 0;
         for (j = 1; j < (uint8_t)frame_offset_info->num_planes; j++) {
-            app_bufs[i].buf.planes_buf.planes[j].length = frame_offset_info->mp[j].len;
-            app_bufs[i].buf.planes_buf.planes[j].m.userptr =
+            app_bufs[i].buf.planes[j].length = frame_offset_info->mp[j].len;
+            app_bufs[i].buf.planes[j].m.userptr =
                 (long unsigned int)app_bufs[i].buf.fd;
-            app_bufs[i].buf.planes_buf.planes[j].data_offset = frame_offset_info->mp[j].offset;
-            app_bufs[i].buf.planes_buf.planes[j].reserved[0] =
-                app_bufs[i].buf.planes_buf.planes[j-1].reserved[0] +
-                app_bufs[i].buf.planes_buf.planes[j-1].length;
+            app_bufs[i].buf.planes[j].data_offset = frame_offset_info->mp[j].offset;
+            app_bufs[i].buf.planes[j].reserved[0] =
+                app_bufs[i].buf.planes[j-1].reserved[0] +
+                app_bufs[i].buf.planes[j-1].length;
         }
     }
     CDBG("%s: X", __func__);
@@ -406,7 +406,7 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
                               -1,
                               pBufs[i].fd,
                               (uint32_t)pBufs[i].frame_len,
-                              CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+                              ops_tbl->userdata);
         if (rc != MM_CAMERA_OK) {
             CDBG_ERROR("%s: mapping buf[%d] err = %d", __func__, i, rc);
             break;
@@ -416,8 +416,7 @@ int mm_app_stream_initbuf(cam_frame_len_offset_t *frame_offset_info,
     if (rc != MM_CAMERA_OK) {
         int j;
         for (j=0; j>i; j++) {
-            ops_tbl->unmap_ops(pBufs[j].buf_idx, -1,
-                    CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+            ops_tbl->unmap_ops(pBufs[j].buf_idx, -1, ops_tbl->userdata);
         }
         mm_app_release_bufs(stream->num_of_bufs, &stream->s_bufs[0]);
         free(pBufs);
@@ -441,8 +440,7 @@ int32_t mm_app_stream_deinitbuf(mm_camera_map_unmap_ops_tbl_t *ops_tbl,
 
     for (i = 0; i < stream->num_of_bufs ; i++) {
         /* mapping stream bufs first */
-        ops_tbl->unmap_ops(stream->s_bufs[i].buf.buf_idx, -1,
-                CAM_MAPPING_BUF_TYPE_STREAM_BUF, ops_tbl->userdata);
+        ops_tbl->unmap_ops(stream->s_bufs[i].buf.buf_idx, -1, ops_tbl->userdata);
     }
 
     mm_app_release_bufs(stream->num_of_bufs, &stream->s_bufs[0]);
@@ -601,6 +599,26 @@ error_after_cam_open:
     return rc;
 }
 
+int add_parm_entry_tobatch(parm_buffer_t *p_table,
+                           cam_intf_parm_type_t paramType,
+                           uint32_t paramLength,
+                           void *paramValue)
+{
+    int rc = MM_CAMERA_OK;
+    void* dst;
+
+    if (paramLength > get_size_of(paramType)) {
+        CDBG_ERROR("%s:Size of input larger than max entry size",__func__);
+        return -1;
+    }
+    dst = get_pointer_of(paramType, p_table);
+    if(dst){
+        memcpy(dst, paramValue, paramLength);
+        p_table->is_valid[paramType] = 1;
+    }
+    return rc;
+}
+
 int init_batch_update(parm_buffer_t *p_table)
 {
     int rc = MM_CAMERA_OK;
@@ -608,10 +626,10 @@ int init_batch_update(parm_buffer_t *p_table)
     int32_t hal_version = CAM_HAL_V1;
 
     memset(p_table, 0, sizeof(parm_buffer_t));
-    if(ADD_SET_PARAM_ENTRY_TO_BATCH(p_table, CAM_INTF_PARM_HAL_VERSION, hal_version)) {
-        rc = -1;
+    rc = add_parm_entry_tobatch(p_table, CAM_INTF_PARM_HAL_VERSION,sizeof(hal_version), &hal_version);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: add_parm_entry_tobatch failed !!", __func__);
     }
-
     return rc;
 }
 
@@ -630,6 +648,31 @@ int commit_set_batch(mm_camera_test_obj_t *test_obj)
     }
     if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: cam->ops->set_parms failed !!", __func__);
+    }
+    return rc;
+}
+
+
+int mm_app_set_params(mm_camera_test_obj_t *test_obj,
+                      cam_intf_parm_type_t param_type,
+                      int32_t value)
+{
+    CDBG_HIGH("\nEnter mm_app_set_params!! param_type =%d & value =%d\n",param_type, value);
+    int rc = MM_CAMERA_OK;
+    rc = init_batch_update(test_obj->params_buffer);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: init_batch_update failed !!", __func__);
+        return rc;
+    }
+    rc = add_parm_entry_tobatch(test_obj->params_buffer, param_type, sizeof(value), &value);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: add_parm_entry_tobatch failed !!", __func__);
+        return rc;
+    }
+    rc = commit_set_batch(test_obj);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: commit_set_batch failed !!", __func__);
+        return rc;
     }
     return rc;
 }
@@ -824,15 +867,56 @@ int mm_app_stop_channel(mm_camera_test_obj_t *test_obj,
                                             channel->ch_id);
 }
 
+int AddSetParmEntryToBatch(mm_camera_test_obj_t *test_obj,
+                           cam_intf_parm_type_t paramType,
+                           uint32_t paramLength,
+                           void *paramValue)
+{
+    parm_buffer_t *p_table = ( parm_buffer_t * ) test_obj->parm_buf.mem_info.data;
+    void* dst;
+    /*************************************************************************
+    *                   Copy contents into entry                             *
+    *************************************************************************/
+
+    if (paramLength > get_size_of(paramType)) {
+        ALOGE("%s:Size of input larger than max entry size",__func__);
+        return MM_CAMERA_E_GENERAL;
+    }
+    dst = get_pointer_of(paramType,p_table);
+    if(dst){
+        memcpy(dst, paramValue, paramLength);
+        p_table->is_valid[paramType] = 1;
+    }
+    return MM_CAMERA_OK;
+}
+
 int initBatchUpdate(mm_camera_test_obj_t *test_obj)
 {
     int32_t hal_version = CAM_HAL_V1;
 
     parm_buffer_t *parm_buf = ( parm_buffer_t * ) test_obj->parm_buf.mem_info.data;
     memset(parm_buf, 0, sizeof(parm_buffer_t));
-    ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_HAL_VERSION, hal_version);
+    AddSetParmEntryToBatch(test_obj,
+                           CAM_INTF_PARM_HAL_VERSION,
+                           sizeof(hal_version),
+                           &hal_version);
 
+    return MM_CAMERA_OK;
+}
+
+int ReadSetParmEntryToBatch(mm_camera_test_obj_t *test_obj,
+                           cam_intf_parm_type_t paramType,
+                           uint32_t paramLength,
+                           void *paramValue)
+{
+    void* dst;
+    parm_buffer_t *p_table = ( parm_buffer_t * ) test_obj->parm_buf.mem_info.data;
+    dst = get_pointer_of(paramType,p_table);
+    if (NULL == dst) {
+        ALOGE("%s: dst is NULL for paramType: %d", __func__, paramType);
+        return MM_CAMERA_E_GENERAL;
+    }
+    memcpy(paramValue, dst, paramLength);
     return MM_CAMERA_OK;
 }
 
@@ -878,10 +962,12 @@ int setAecLock(mm_camera_test_obj_t *test_obj, int value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_AEC_LOCK, (uint32_t)value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_AEC_LOCK,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: AEC Lock parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -905,10 +991,12 @@ int setAwbLock(mm_camera_test_obj_t *test_obj, int value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_AWB_LOCK, (uint32_t)value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_AWB_LOCK,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: AWB Lock parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -933,10 +1021,12 @@ int set3Acommand(mm_camera_test_obj_t *test_obj, cam_eztune_cmd_data_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_EZTUNE_CMD, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_EZTUNE_CMD,
+                                sizeof(cam_eztune_cmd_data_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: CAM_INTF_PARM_EZTUNE_CMD parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -960,10 +1050,12 @@ int getChromatix(mm_camera_test_obj_t *test_obj, tune_chromatix_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_GET_CHROMATIX, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_GET_CHROMATIX,
+                                sizeof(tune_chromatix_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: getChromatixPointer not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -973,9 +1065,14 @@ int getChromatix(mm_camera_test_obj_t *test_obj, tune_chromatix_t *value)
         goto ERROR;
     }
 
-    READ_PARAM_ENTRY(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_GET_CHROMATIX, *value);
-
+    rc = ReadSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_GET_CHROMATIX,
+                                sizeof(tune_chromatix_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: getChromatixPointer not able to read\n", __func__);
+        goto ERROR;
+    }
 ERROR:
     return rc;
 }
@@ -990,10 +1087,12 @@ int setReloadChromatix(mm_camera_test_obj_t *test_obj, tune_chromatix_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SET_RELOAD_CHROMATIX, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SET_RELOAD_CHROMATIX,
+                                sizeof(tune_chromatix_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: getChromatixPointer not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1016,10 +1115,12 @@ int getAutofocusParams(mm_camera_test_obj_t *test_obj, tune_autofocus_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_GET_AFTUNE, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_GET_AFTUNE,
+                                sizeof(tune_autofocus_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: getChromatixPointer not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1029,9 +1130,14 @@ int getAutofocusParams(mm_camera_test_obj_t *test_obj, tune_autofocus_t *value)
         goto ERROR;
     }
 
-    READ_PARAM_ENTRY(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_GET_AFTUNE, *value);
-
+    rc = ReadSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_GET_AFTUNE,
+                                sizeof(tune_autofocus_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: getAutofocusParams not able to read\n", __func__);
+        goto ERROR;
+    }
 ERROR:
     return rc;
 }
@@ -1046,10 +1152,12 @@ int setReloadAutofocusParams(mm_camera_test_obj_t *test_obj, tune_autofocus_t *v
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SET_RELOAD_AFTUNE, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SET_RELOAD_AFTUNE,
+                                sizeof(tune_autofocus_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: setReloadAutofocusParams not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1072,10 +1180,12 @@ int setAutoFocusTuning(mm_camera_test_obj_t *test_obj, tune_actuator_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SET_AUTOFOCUSTUNING, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SET_AUTOFOCUSTUNING,
+                                sizeof(tune_actuator_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: AutoFocus Tuning not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1099,10 +1209,12 @@ int setVfeCommand(mm_camera_test_obj_t *test_obj, tune_cmd_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SET_VFE_COMMAND, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SET_VFE_COMMAND,
+                                sizeof(tune_cmd_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: VFE Command not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1126,10 +1238,12 @@ int setPPCommand(mm_camera_test_obj_t *test_obj, tune_cmd_t *value)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SET_PP_COMMAND, *value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SET_PP_COMMAND,
+                                sizeof(tune_cmd_t),
+                                value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: PP Command not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1155,10 +1269,12 @@ int setFocusMode(mm_camera_test_obj_t *test_obj, cam_focus_mode_type mode)
 
     uint32_t value = mode;
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_FOCUS_MODE, value)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_FOCUS_MODE,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Focus mode parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1188,10 +1304,14 @@ int setEVCompensation(mm_camera_test_obj_t *test_obj, int ev)
             goto ERROR;
         }
 
-        if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-                CAM_INTF_PARM_EXPOSURE_COMPENSATION, ev)) {
+        uint32_t value = (uint32_t)ev;
+
+        rc = AddSetParmEntryToBatch(test_obj,
+                                    CAM_INTF_PARM_EXPOSURE_COMPENSATION,
+                                    sizeof(value),
+                                    &value);
+        if (rc != MM_CAMERA_OK) {
             CDBG_ERROR("%s: EV compensation parameter not added to batch\n", __func__);
-            rc = -1;
             goto ERROR;
         }
 
@@ -1201,7 +1321,7 @@ int setEVCompensation(mm_camera_test_obj_t *test_obj, int ev)
             goto ERROR;
         }
 
-        CDBG_ERROR("%s: EV compensation set to: %d", __func__, ev);
+        CDBG_ERROR("%s: EV compensation set to: %d", __func__, value);
     } else {
         CDBG_ERROR("%s: Invalid EV compensation", __func__);
         return -EINVAL;
@@ -1221,10 +1341,14 @@ int setAntibanding(mm_camera_test_obj_t *test_obj, cam_antibanding_mode_type ant
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_ANTIBANDING, antibanding)) {
+    uint32_t value = antibanding;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_ANTIBANDING,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Antibanding parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1234,7 +1358,7 @@ int setAntibanding(mm_camera_test_obj_t *test_obj, cam_antibanding_mode_type ant
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Antibanding set to: %d", __func__, (int)antibanding);
+    CDBG_ERROR("%s: Antibanding set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1250,10 +1374,14 @@ int setWhiteBalance(mm_camera_test_obj_t *test_obj, cam_wb_mode_type mode)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_WHITE_BALANCE, mode)) {
+    uint32_t value = mode;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_WHITE_BALANCE,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: White balance parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1263,7 +1391,7 @@ int setWhiteBalance(mm_camera_test_obj_t *test_obj, cam_wb_mode_type mode)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: White balance set to: %d", __func__, (int)mode);
+    CDBG_ERROR("%s: White balance set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1279,10 +1407,14 @@ int setExposureMetering(mm_camera_test_obj_t *test_obj, cam_auto_exposure_mode_t
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_EXPOSURE, mode)) {
+    uint32_t value = mode;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_EXPOSURE,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Exposure metering parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1292,7 +1424,7 @@ int setExposureMetering(mm_camera_test_obj_t *test_obj, cam_auto_exposure_mode_t
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Exposure metering set to: %d", __func__, (int)mode);
+    CDBG_ERROR("%s: Exposure metering set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1308,10 +1440,14 @@ int setBrightness(mm_camera_test_obj_t *test_obj, int brightness)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_BRIGHTNESS, brightness)) {
+    int32_t value = brightness;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_BRIGHTNESS,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Brightness parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1321,7 +1457,7 @@ int setBrightness(mm_camera_test_obj_t *test_obj, int brightness)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Brightness set to: %d", __func__, brightness);
+    CDBG_ERROR("%s: Brightness set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1337,10 +1473,14 @@ int setContrast(mm_camera_test_obj_t *test_obj, int contrast)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_CONTRAST, contrast)) {
+    int32_t value = contrast;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_CONTRAST,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Contrast parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1350,7 +1490,7 @@ int setContrast(mm_camera_test_obj_t *test_obj, int contrast)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Contrast set to: %d", __func__, contrast);
+    CDBG_ERROR("%s: Contrast set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1366,10 +1506,14 @@ int setTintless(mm_camera_test_obj_t *test_obj, int tintless)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_TINTLESS, tintless)) {
-        CDBG_ERROR("%s: Tintless parameter not added to batch\n", __func__);
-        rc = -1;
+    int32_t value = tintless;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_TINTLESS,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
+        CDBG_ERROR("%s: Contrast parameter not added to batch\n", __func__);
         goto ERROR;
     }
 
@@ -1379,7 +1523,7 @@ int setTintless(mm_camera_test_obj_t *test_obj, int tintless)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s:  set Tintless to: %d", __func__, tintless);
+    CDBG_ERROR("%s:  set Tintless to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1395,10 +1539,14 @@ int setSaturation(mm_camera_test_obj_t *test_obj, int saturation)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SATURATION, saturation)) {
+    int32_t value = saturation;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SATURATION,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Saturation parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1408,7 +1556,7 @@ int setSaturation(mm_camera_test_obj_t *test_obj, int saturation)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Saturation set to: %d", __func__, saturation);
+    CDBG_ERROR("%s: Saturation set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1424,10 +1572,14 @@ int setSharpness(mm_camera_test_obj_t *test_obj, int sharpness)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_SHARPNESS, sharpness)) {
+    int32_t value = sharpness;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_SHARPNESS,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Sharpness parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1438,7 +1590,7 @@ int setSharpness(mm_camera_test_obj_t *test_obj, int sharpness)
     }
 
     test_obj->reproc_sharpness = sharpness;
-    CDBG_ERROR("%s: Sharpness set to: %d", __func__, sharpness);
+    CDBG_ERROR("%s: Sharpness set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1454,10 +1606,14 @@ int setISO(mm_camera_test_obj_t *test_obj, cam_iso_mode_type iso)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_ISO, iso)) {
+    int32_t value = iso;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_ISO,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: ISO parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1467,7 +1623,7 @@ int setISO(mm_camera_test_obj_t *test_obj, cam_iso_mode_type iso)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: ISO set to: %d", __func__, (int)iso);
+    CDBG_ERROR("%s: ISO set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1483,10 +1639,14 @@ int setZoom(mm_camera_test_obj_t *test_obj, int zoom)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_ZOOM, zoom)) {
+    int32_t value = zoom;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_ZOOM,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Zoom parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1496,7 +1656,7 @@ int setZoom(mm_camera_test_obj_t *test_obj, int zoom)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Zoom set to: %d", __func__, zoom);
+    CDBG_ERROR("%s: Zoom set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1512,10 +1672,12 @@ int setFPSRange(mm_camera_test_obj_t *test_obj, cam_fps_range_t range)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_FPS_RANGE, range)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_FPS_RANGE,
+                                sizeof(cam_fps_range_t),
+                                &range);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: FPS range parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1544,10 +1706,14 @@ int setScene(mm_camera_test_obj_t *test_obj, cam_scene_mode_type scene)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_BESTSHOT_MODE, scene)) {
+    int32_t value = scene;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_BESTSHOT_MODE,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Scene parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1557,7 +1723,7 @@ int setScene(mm_camera_test_obj_t *test_obj, cam_scene_mode_type scene)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Scene set to: %d", __func__, (int)scene);
+    CDBG_ERROR("%s: Scene set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1573,10 +1739,14 @@ int setFlash(mm_camera_test_obj_t *test_obj, cam_flash_mode_t flash)
         goto ERROR;
     }
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_LED_MODE, flash)) {
+    int32_t value = flash;
+
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_LED_MODE,
+                                sizeof(value),
+                                &value);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: Flash parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
@@ -1586,7 +1756,7 @@ int setFlash(mm_camera_test_obj_t *test_obj, cam_flash_mode_t flash)
         goto ERROR;
     }
 
-    CDBG_ERROR("%s: Flash set to: %d", __func__, (int)flash);
+    CDBG_ERROR("%s: Flash set to: %d", __func__, value);
 
 ERROR:
     return rc;
@@ -1607,10 +1777,12 @@ int setWNR(mm_camera_test_obj_t *test_obj, uint8_t enable)
     param.denoise_enable = enable;
     param.process_plates = CAM_WAVELET_DENOISE_YCBCR_PLANE;
 
-    if (ADD_SET_PARAM_ENTRY_TO_BATCH(test_obj->parm_buf.mem_info.data,
-            CAM_INTF_PARM_WAVELET_DENOISE, param)) {
+    rc = AddSetParmEntryToBatch(test_obj,
+                                CAM_INTF_PARM_WAVELET_DENOISE,
+                                sizeof(cam_denoise_param_t),
+                                &param);
+    if (rc != MM_CAMERA_OK) {
         CDBG_ERROR("%s: WNR enabled parameter not added to batch\n", __func__);
-        rc = -1;
         goto ERROR;
     }
 
