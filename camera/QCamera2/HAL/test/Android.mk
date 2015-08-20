@@ -36,8 +36,8 @@ LOCAL_C_INCLUDES += \
     frameworks/base/include/media \
     external/skia/include/core \
     external/skia/include/images \
-    hardware/qcom/display/libgralloc \
-    hardware/qcom/camera/QCamera2/stack/common \
+    $(call project-path-for,qcom-display)/libgralloc \
+    $(LOCAL_PATH)/../../stack/common \
     frameworks/av/include/media/stagefright \
     frameworks/native/include/media/openmax \
     $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
