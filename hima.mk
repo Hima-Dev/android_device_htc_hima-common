@@ -144,8 +144,8 @@ PRODUCT_PACKAGES += \
     liboverlay
 
 # Keymaster
-PRODUCT_PACKAGES += \
-    keystore.msm8994
+# PRODUCT_PACKAGES += \
+#    keystore.msm8994
 
 # Filesystem management tools
 PRODUCT_PACKAGES += \
